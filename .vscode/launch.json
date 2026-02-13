@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Open in Chrome",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost/SATC%20REPAIR%20TICKET/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Open in Edge",
+      "type": "pwa-msedge",
+      "request": "launch",
+      "url": "http://localhost/SATC%20REPAIR%20TICKET/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Open in Firefox",
+      "type": "firefox",
+      "request": "launch",
+      "url": "http://localhost/SATC%20REPAIR%20TICKET/",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}
