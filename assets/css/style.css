@@ -133,11 +133,7 @@ body {
 
 .sidebar-toggle i {
     font-size: 0.8rem;
-    transition: transform 0.3s ease;
-}
-
-.sidebar.collapsed .sidebar-toggle i {
-    transform: rotate(180deg);
+    transition: all 0.3s ease;
 }
 
 .nav-link {
@@ -334,7 +330,7 @@ h1.h2 {
     cursor: pointer;
 }
 
-/* Tickets table header - matching sidebar color */
+/* Tickets table header - matching sidebar color, left-aligned */
 #tickets-table thead th {
     background-color: var(--sidebar-bg);
     color: white;
@@ -344,6 +340,49 @@ h1.h2 {
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
+    text-align: left;
+    box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
+}
+/* Header row full background when scrolling horizontally */
+#tickets-table thead tr {
+    background-color: var(--sidebar-bg);
+}
+#tickets-table thead th:last-child {
+    width: 6%;
+    min-width: 5.5rem;
+    padding-right: 1rem;
+    padding-left: 0.75rem;
+    box-shadow: 2px 1px 0 0 rgba(0,0,0,0.05);
+    border-top-right-radius: var(--radius);
+    background-color: var(--sidebar-bg);
+    position: relative;
+    white-space: nowrap;
+    overflow: visible;
+}
+/* Extender sits underneath the header and overlaps with negative value to hide the seam (no radius on extender) */
+#tickets-table thead th:last-child::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    margin-left: -20px;
+    width: 36px;
+    background: var(--sidebar-bg);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    z-index: -1;
+}
+.tickets-table-wrapper.scrolled-horizontal #tickets-table thead th:last-child::after {
+    opacity: 1;
+    visibility: visible;
+}
+/* Ticket number header overlays checkbox column (colspan 2) - shifted right a bit */
+#tickets-table thead th.tickets-table-th-ticket-number {
+    padding-left: 1.25rem;
+    min-width: 0;
 }
 
 #tickets-table thead th:hover {
@@ -448,6 +487,7 @@ h1.h2 {
     -webkit-overflow-scrolling: touch;
     border: 1px solid #e9ecef;
     border-radius: var(--radius);
+    padding-right: 2px;
 }
 .tickets-table-wrapper::-webkit-scrollbar {
     height: 8px;
@@ -483,56 +523,108 @@ h1.h2 {
 #tickets-table {
     table-layout: fixed;
     width: 100%;
-    min-width: 900px;
+    min-width: 1000px;
     font-size: 0.8125rem;
+}
+/* Keep header row background continuous when scrolling horizontally */
+#tickets-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 #tickets-table th,
 #tickets-table td {
     padding: 0.5rem 0.75rem;
     vertical-align: middle;
 }
-#tickets-table th:nth-child(1) { width: 10%; min-width: 7rem; }   /* Ticket number */
-#tickets-table th:nth-child(2) { width: 11%; min-width: 7.5rem; }   /* JO number - increased */
-#tickets-table th:nth-child(3) { width: 12%; min-width: 8rem; }   /* Account number */
-#tickets-table th:nth-child(4) { width: 8%; min-width: 5.5rem; }   /* Date */
-#tickets-table th:nth-child(5) { width: 14%; min-width: 8rem; }   /* Customer */
-#tickets-table th:nth-child(6) { width: 15%; min-width: 9rem; }   /* Issue - reduced */
+/* Header: first th has colspan 2 (Ticket number over checkbox + ticket number columns) */
+#tickets-table th:nth-child(1) { width: 13%; min-width: 8rem; padding-left: 0.5rem; }
+#tickets-table th:nth-child(2) { width: 11%; min-width: 8rem; }   /* JO number */
+#tickets-table th:nth-child(3) { width: 12%; min-width: 8.5rem; }   /* Account number */
+#tickets-table th:nth-child(4) { width: 10%; min-width: 6.5rem; }   /* Date */
+#tickets-table th:nth-child(5) { width: 12%; min-width: 9rem; }   /* Customer */
+#tickets-table th:nth-child(6) { width: 10%; min-width: 7rem; }   /* Issue */
 #tickets-table th:nth-child(7) { width: 11%; min-width: 7.5rem; }   /* Status */
 #tickets-table th:nth-child(8) { width: 8%; min-width: 6rem; }   /* Risk */
 #tickets-table th:nth-child(9) { width: 7%; min-width: 5rem; }   /* Team */
-#tickets-table th:nth-child(10) { width: 8%; min-width: 4.5rem; }   /* Actions */
-/* Repair ticket number column - pink text */
-#tickets-table td:nth-child(1) { color: var(--primary-color); font-weight: 600; }
-#tickets-table td:nth-child(2) { color: var(--primary-color); font-weight: 600; }
-#tickets-table td:nth-child(4) { white-space: nowrap; }  /* Keep date on one line */
+/* Checkbox column: narrow fixed width so ticket number can overlap into remaining space without covering checkbox */
+#tickets-table tbody td:nth-child(1) {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    max-width: 2.25rem;
+    padding-left: 0.5rem;
+    padding-right: 0.25rem;
+    box-sizing: border-box;
+}
+/* Ticket number value cell - overflow visible so inner span can overlap left */
+#tickets-table td.ticket-number-value-cell {
+    color: var(--table-text, #212529);
+    font-weight: 600;
+    padding-right: 0.75rem;
+    padding-left: 0.5rem;
+    overflow: visible;
+    vertical-align: middle;
+}
+/* Pull the value (e.g. S2SREPAIR-000571) left so it overlaps into checkbox column; margin works on the span, not on td */
+#tickets-table td.ticket-number-value-cell .ticket-number-value-inner {
+    display: inline-block;
+    margin-left: -1.6rem;
+}
+#tickets-table td:nth-child(3) { color: var(--primary-color); font-weight: 600; padding-right: 0.75rem; }
+#tickets-table td:nth-child(5) { white-space: nowrap; padding-right: 1rem; }  /* Keep date on one line */
+#tickets-table td:nth-child(4) { padding-right: 1rem; }  /* Account number */
+#tickets-table td:nth-child(6) { padding-right: 1rem; }  /* Customer */
 /* Customer & Issue: wrap lengthy text inside cell */
-#tickets-table td:nth-child(5),
 #tickets-table td:nth-child(6) {
     word-wrap: break-word;
     word-break: break-word;
     overflow-wrap: break-word;
     max-width: 0;
+    padding-right: 1rem;
 }
-#tickets-table td:nth-child(6) .ticket-issue {
+#tickets-table td:nth-child(7) {
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 0;
+    text-align: right;
+    padding-right: 1rem;
+}
+#tickets-table td:nth-child(7) .ticket-issue {
     display: block;
     max-width: 100%;
+    text-align: left;
+}
+#tickets-table th:nth-child(7) {
+    padding-right: 1rem;
 }
 #tickets-table .badge { font-size: 0.7rem; padding: 0.35em 0.6em; max-width: 100%; }
 /* STATUS and RISK: contain badges */
-#tickets-table td:nth-child(7),
-#tickets-table th:nth-child(7) {
+#tickets-table td:nth-child(8),
+#tickets-table th:nth-child(8) {
     padding-left: 0.5rem;
     padding-right: 0.6rem;
     overflow: hidden;
+    text-align: left;
 }
-#tickets-table td:nth-child(7) .badge { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#tickets-table td:nth-child(8),
-#tickets-table th:nth-child(8) {
+#tickets-table td:nth-child(8) .badge { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tickets-table td:nth-child(9),
+#tickets-table th:nth-child(9) {
     padding-left: 0.6rem;
     padding-right: 0.5rem;
     overflow: hidden;
+    text-align: left;
 }
-#tickets-table td:nth-child(8) .badge { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tickets-table td:nth-child(9) .badge { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Team and Actions columns - left aligned */
+#tickets-table td:nth-child(10),
+#tickets-table th:nth-child(9) {
+    text-align: left;
+}
+#tickets-table td:nth-child(11),
+#tickets-table thead th:last-child {
+    text-align: left;
+}
 #tickets-table .btn { font-size: 0.75rem; padding: 0.35rem 0.6rem; white-space: nowrap; }
 @media (max-width: 991.98px) {
     .tickets-table-wrapper {
@@ -631,6 +723,14 @@ h1.h2 {
     color: #B45309 !important;
 }
 
+/* Clusters: date dropdowns wide enough so month names don't overlap the arrow */
+#clusters-month {
+    min-width: 9rem;
+}
+#clusters-year {
+    min-width: 6rem;
+}
+
 /* Forms */
 .form-control, .form-select {
     border-radius: 8px;
@@ -680,11 +780,53 @@ optgroup {
     color: #1a1a1a !important;
 }
 
-/* Loading spinner - Pink */
-.spinner-border.text-primary {
-    color: var(--primary-color) !important;
-    border-color: currentColor;
-    border-right-color: transparent;
+/* ========== Section loading animation (uniform, centered) – Surf 2 Sawa colors ========== */
+.section-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    padding: 1.5rem;
+    text-align: center;
+}
+.section-loader .loader {
+    margin-bottom: 0.75rem;
+}
+.section-loader p {
+    margin: 0;
+    font-weight: 500;
+    color: var(--bs-secondary);
+}
+/* Center loader in table cell */
+table td .section-loader {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Dual-ring loader – pink (scroll) & yellow (hover), counter-rotating */
+.loader {
+    width: 50px;
+    aspect-ratio: 1;
+    display: grid;
+    animation: loader-spin 4s infinite;
+}
+.loader::before,
+.loader::after {
+    content: "";
+    grid-area: 1/1;
+    border: 8px solid;
+    border-radius: 50%;
+    border-color: var(--primary-color) var(--primary-color) #0000 #0000;
+    mix-blend-mode: darken;
+    animation: loader-spin 1s infinite linear;
+}
+.loader::after {
+    border-color: #0000 #0000 var(--secondary-hover) var(--secondary-hover);
+    animation-direction: reverse;
+}
+@keyframes loader-spin {
+    100% { transform: rotate(1turn); }
 }
 
 /* Ticket Modal - Compact Layout */
@@ -762,6 +904,16 @@ optgroup {
     font-size: 1.1rem;
     font-weight: 600;
     color: #fff;
+}
+#ticketViewModal .ticket-view-team-indicator {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.35);
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.02em;
 }
 #ticketViewModal .ticket-view-modal-header .btn-close-white {
     filter: invert(1) grayscale(100%) brightness(200%);
@@ -892,7 +1044,7 @@ optgroup {
     width: auto;
 }
 #dashboard-region {
-    min-width: 10rem;
+    min-width: 10rem;   
 }
 #dashboard-month {
     min-width: 9.5rem;
@@ -915,6 +1067,35 @@ optgroup {
 }
 #analytics-month.analytics-select { min-width: 8.5rem; }
 #analytics-year.analytics-select { min-width: 5.5rem; }
+
+/* Analytics controls: Region + date preset on right; custom range row underneath, aligned right */
+.analytics-controls-wrap {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: flex-end;
+}
+.analytics-custom-row {
+    flex-basis: 100%;
+    width: 100%;
+    min-height: 0;
+    justify-content: flex-end;
+}
+.analytics-custom-row:not(.d-none) {
+    display: flex !important;
+}
+/* Custom date row: increase width here to make the From/To inputs bigger */
+.analytics-custom-inner {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    width: 22.90rem;   /* was 20.5rem; increase (e.g. 28rem, 30rem) to make date fields wider */
+    max-width: 100%;
+}
+.analytics-custom-date {
+    flex: 1 1 0;
+    min-width: 0;
+    /* width is controlled by .analytics-custom-inner; inputs share the space equally */
+}
 
 /* ========== Analytics – Top Issues (sleek UI, colored ranks) ========== */
 .top-issues-card {
@@ -1481,5 +1662,76 @@ body:has(.sidebar.collapsed) .system-footer {
     .footer-address-line2 {
         padding-left: 0;
     }
+}
+
+/* Checkbox column styles */
+.ticket-checkbox {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+#select-all-checkbox {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+/* Export button styles */
+#export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* New tickets badge */
+#new-tickets-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    min-width: 18px;
+    text-align: center;
+    animation: pulse 2s infinite;
+    position: relative;
+    top: -2px;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Viber button in modal */
+.modal-footer .btn-success {
+    background-color: #665CAC;
+    border-color: #665CAC;
+    border-radius: var(--radius);
+}
+
+.modal-footer .btn-success:hover {
+    background-color: #554a9a;
+    border-color: #554a9a;
+}
+
+/* Viber export button */
+#viber-export-btn {
+    background-color: #665CAC;
+    border-color: #665CAC;
+    color: white;
+    border-radius: var(--radius);
+}
+
+#viber-export-btn:hover:not(:disabled) {
+    background-color: #554a9a;
+    border-color: #554a9a;
+}
+
+#viber-export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 

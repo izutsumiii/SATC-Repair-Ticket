@@ -14,11 +14,15 @@ function toggleSidebar() {
     const main = document.querySelector('main');
     const footer = document.querySelector('.system-footer');
     const toggleBtn = document.getElementById('sidebarToggle');
+    const icon = toggleBtn.querySelector('i');
     
     sidebar.classList.toggle('collapsed');
     
-    // Adjust main content margin, width, and button position
+    // Change arrow direction based on sidebar state
     if (sidebar.classList.contains('collapsed')) {
+        // Sidebar is closed - show right arrow (to open)
+        icon.classList.remove('fa-chevron-left');
+        icon.classList.add('fa-chevron-right');
         main.style.marginLeft = '70px';
         main.style.width = 'calc(100% - 70px)';
         if (footer) {
@@ -27,6 +31,9 @@ function toggleSidebar() {
         }
         toggleBtn.style.left = '55px';
     } else {
+        // Sidebar is open - show left arrow (to close)
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-left');
         main.style.marginLeft = '16.66667%';
         main.style.width = 'calc(100% - 16.66667%)';
         if (footer) {
@@ -46,10 +53,10 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbzcuLV1n4uBd2wPTOJd8KSo
 window.GAS_URL = GAS_URL; // so console test and fallback can use it
 
 // GAS TROUBLESHOOTING (Network error / connection failed):
-// 1. Deploy: In Google Apps Script → Deploy → Manage deployments → Edit → set "Who has access" to "Anyone".
+// 1. Deploy: In Google Apps Script â†’ Deploy â†’ Manage deployments â†’ Edit â†’ set "Who has access" to "Anyone".
 // 2. URL: After redeploy, copy the new Web app URL and paste it in GAS_URL above (replace the whole string).
 // 3. Run via HTTP: Open the app at http://localhost/... (XAMPP), not as file:// (file on disk).
-// 4. Test in console: Open DevTools (F12) → Console → type: testGasConnection()
+// 4. Test in console: Open DevTools (F12) â†’ Console â†’ type: testGasConnection()
 //    This will try to call GAS and print the real error or "OK" so you can debug.
 
 // Auto-refresh interval in milliseconds (e.g., 2000 = 2 seconds)
@@ -92,7 +99,7 @@ function getApiUrl(params = '') {
     }
 }
 
-/** Run in browser console (F12 → Console): testGasConnection()
+/** Run in browser console (F12 â†’ Console): testGasConnection()
  * Tests if the GAS URL is reachable and logs the real error if not. */
 window.testGasConnection = async function () {
     console.log('Testing GAS URL:', GAS_URL);
@@ -101,7 +108,7 @@ window.testGasConnection = async function () {
         console.log('Status:', r.status, r.statusText);
         const text = await r.text();
         console.log('Response (first 300 chars):', text.slice(0, 300));
-        if (r.ok) console.log('OK – GAS URL is reachable.');
+        if (r.ok) console.log('OK â€“ GAS URL is reachable.');
         else console.warn('GAS returned error status. Check your script and deployment.');
     } catch (e) {
         console.error('Connection failed:', e.message);
@@ -165,6 +172,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 riskSelect.value = value;
             }
         });
+    }
+
+    // Toggle Actions header background extension only when scrolling horizontally
+    const ticketsWrapper = document.querySelector('.tickets-table-wrapper');
+    if (ticketsWrapper) {
+        ticketsWrapper.addEventListener('scroll', function() {
+            this.classList.toggle('scrolled-horizontal', this.scrollLeft > 0);
+        });
+        ticketsWrapper.classList.toggle('scrolled-horizontal', ticketsWrapper.scrollLeft > 0);
     }
 });
 
@@ -645,7 +661,7 @@ function updateClusters() {
                 const ticketJson = (JSON.stringify(t) || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 return `<tr class="clusters-ticket-row" data-ticket-json="${ticketJson}">
                     <td class="fw-bold jo-number-pink">#${t.ticket_id}</td>
-                    <td class="text-muted">${escapeHtml(t.customer_name || '—')}</td>
+                    <td class="text-muted">${escapeHtml(t.customer_name || 'â€”')}</td>
                     <td><span class="badge bg-${statusColor}" style="font-size: 0.65rem;">${escapeHtml(displayStatus)}</span></td>
                     <td><span class="badge bg-${riskColor}" style="font-size: 0.65rem;">${escapeHtml(t.risk_level || '')}</span></td>
                     <td class="text-end">
@@ -890,7 +906,7 @@ async function loadTickets(preserveFilters = false) {
         if (!preserveFilters) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted fw-medium">Loading Data. Please Wait...</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="py-5"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
             }
         }
         
@@ -918,7 +934,12 @@ async function loadTickets(preserveFilters = false) {
             console.error('API returned error:', data.error);
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + data.error + '</td></tr>';
+                let errorMsg = data.error;
+                // Translate common error messages to English
+                if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
+                    errorMsg = 'Too many requests. Please wait a moment and try again.';
+                }
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + escapeHtml(errorMsg) + '</td></tr>';
             }
             return;
         }
@@ -928,23 +949,34 @@ async function loadTickets(preserveFilters = false) {
             console.error('API did not return an array:', data);
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
             }
             return;
         }
 
         allTickets = data;
         
+        // Sort by date_created descending (newest first)
+        allTickets.sort((a, b) => {
+            const dateA = new Date(a.date_created || '1970-01-01');
+            const dateB = new Date(b.date_created || '1970-01-01');
+            return dateB - dateA; // Descending (newest first)
+        });
+        
+        // Check for new tickets and update badge
+        checkForNewTickets();
+        
         // Always render all tickets on initial load
-        console.log('✓ Loading tickets SUCCESS, total count:', allTickets.length);
+        console.log('âœ“ Loading tickets SUCCESS, total count:', allTickets.length);
         
         if (allTickets.length === 0) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
             }
             const countEl = document.getElementById('ticket-count');
             if(countEl) countEl.innerText = 'No tickets';
+            updateExportButton();
             return;
         }
         
@@ -960,13 +992,19 @@ async function loadTickets(preserveFilters = false) {
             if(countEl) countEl.innerText = `Showing ${allTickets.length} ticket${allTickets.length !== 1 ? 's' : ''}`;
         }
         
-        console.log('✓ Tickets table rendered successfully');
+        console.log('âœ“ Tickets table rendered successfully');
     } catch (e) {
         console.error("Error loading tickets:", e);
         const tbody = document.getElementById('tickets-table-body');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + e.message + '</td></tr>';
+            let errorMsg = e.message || 'Unknown error';
+            // Translate common error messages to English
+            if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
+                errorMsg = 'Too many requests. Please wait a moment and try again.';
+            }
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + escapeHtml(errorMsg) + '</td></tr>';
         }
+        updateExportButton();
     }
 }
 
@@ -988,35 +1026,50 @@ function escapeHtml(s) {
         .replace(/"/g, '&quot;');
 }
 
+// Store selected ticket IDs to preserve checkbox state
+let selectedTicketIds = new Set();
+
 function renderTicketsTable(tickets) {
     const tbody = document.getElementById('tickets-table-body');
     
     if (!tbody) {
-        console.error('❌ Tickets table body element (#tickets-table-body) not found!');
+        console.error('âŒ Tickets table body element (#tickets-table-body) not found!');
         return;
     }
     
-    console.log('→ Rendering tickets table, ticket count:', tickets ? tickets.length : 'null/undefined');
+    console.log('â†’ Rendering tickets table, ticket count:', tickets ? tickets.length : 'null/undefined');
+    
+    // Save current checkbox states before re-rendering
+    saveCheckboxStates();
     
     if (!tickets || tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted">No tickets found</td></tr>';
-        console.log('→ No tickets to display');
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted">No tickets found</td></tr>';
+        console.log('â†’ No tickets to display');
+        updateExportButton();
         return;
     }
 
+    // Only check the first row per ticket_id (data can have duplicate ticket_ids; one checkbox per ticket).
+    const checkedRendered = new Set();
     const rows = tickets.map(t => {
         const displayStatus = normalizeStatus(t.status);
         const statusColor = getStatusColor(t.status);
         const statusIcon = getStatusIcon(t.status);
         const riskColor = getRiskColor(t.risk_level);
-        const customer = t.customer_name != null ? String(t.customer_name) : '—';
-        const description = t.description != null ? String(t.description) : '—';
+        const customer = t.customer_name != null ? String(t.customer_name) : 'â€”';
+        const description = t.description != null ? String(t.description) : 'â€”';
+        const ticketJson = escapeAttr(JSON.stringify(t));
+        const tid = String(t.ticket_id);
+        const isChecked = selectedTicketIds.has(tid) && !checkedRendered.has(tid) ? (checkedRendered.add(tid), 'checked') : '';
 
         return `
         <tr>
-            <td class="ps-3 text-dark">${escapeHtml(t.ticket_id_form) || '—'}</td>
-            <td class="fw-bold jo-number-pink">#${escapeHtml(t.ticket_id)}</td>
-            <td class="text-muted small">${escapeHtml(t.account_number) || '—'}</td>
+            <td class="ps-3">
+                <input type="checkbox" class="ticket-checkbox" value="${escapeAttr(t.ticket_id)}" ${isChecked} onchange="handleTicketCheckboxChange(this)">
+            </td>
+            <td class="ticket-number-value-cell"><span class="ticket-number-value-inner">${escapeHtml(t.ticket_id_form) || 'â€”'}</span></td>
+            <td class="fw-bold jo-number-pink ticket-id-view-link" role="button" tabindex="0" data-ticket-json="${ticketJson}" title="View ticket details" style="cursor: pointer;">#${escapeHtml(t.ticket_id)}</td>
+            <td class="text-muted small">${escapeHtml(t.account_number) || 'â€”'}</td>
             <td class="text-muted small">${escapeHtml(t.date_created)}</td>
             <td class="fw-medium ticket-cell-customer" title="${escapeAttr(customer)}">${escapeHtml(customer)}</td>
             <td><span class="ticket-issue" title="${escapeAttr(description)}">${escapeHtml(description)}</span></td>
@@ -1027,7 +1080,7 @@ function renderTicketsTable(tickets) {
             </td>
             <td><span class="badge bg-${riskColor}" title="${escapeAttr(t.risk_level)}">${escapeHtml(t.risk_level)}</span></td>
             <td><span class="small text-muted"><i class="fas fa-users me-1"></i> ${escapeHtml(t.team) || 'Unassigned'}</span></td>
-            <td class="text-end pe-3">
+            <td class="pe-3">
                 <button class="btn btn-sm btn-light text-primary border-0 shadow-sm" onclick='editTicket(${JSON.stringify(t)})'>
                     <i class="fas fa-edit"></i> Edit
                 </button>
@@ -1036,7 +1089,21 @@ function renderTicketsTable(tickets) {
     `}).join('');
     
     tbody.innerHTML = rows;
-    console.log('✓ Table HTML updated, row count:', tickets.length);
+    updateExportButton();
+    console.log('âœ“ Table HTML updated, row count:', tickets.length);
+}
+
+// From test.php: save checked state before re-render so we can restore it in rows.
+function saveCheckboxStates() {
+    try {
+        const tbody = document.getElementById('tickets-table-body');
+        const checkboxes = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox') : [];
+        const checked = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked') : [];
+        selectedTicketIds.clear();
+        checkboxes.forEach(cb => { if (cb.checked) selectedTicketIds.add(cb.value); });
+    } catch (e) {
+        console.error('saveCheckboxStates:', e);
+    }
 }
 
 function getStatusIcon(status) {
@@ -1091,18 +1158,22 @@ function normalizeStatus(status) {
 
 function filterTickets() {
     // Ensure allTickets is loaded
-    if (!allTickets || allTickets.length === 0) {
+        if (!allTickets || allTickets.length === 0) {
         console.warn('No tickets data available to filter');
         const tbody = document.getElementById('tickets-table-body');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted">No tickets available</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted">No tickets available</td></tr>';
         }
+        updateExportButton();
         return;
     }
     
-    const search = document.getElementById('search-input').value.toLowerCase();
-    const statusFilter = document.getElementById('filter-status').value;
-    const risk = document.getElementById('filter-risk').value;
+    const searchEl = document.getElementById('search-input');
+    const statusEl = document.getElementById('filter-status');
+    const riskEl = document.getElementById('filter-risk');
+    const search = (searchEl && searchEl.value) ? searchEl.value.toLowerCase() : '';
+    const statusFilter = (statusEl && statusEl.value) ? statusEl.value : '';
+    const risk = (riskEl && riskEl.value) ? riskEl.value : '';
 
     const filtered = allTickets.filter(t => {
         const searchable = [
@@ -1127,6 +1198,13 @@ function filterTickets() {
         }
         const matchesRisk = risk ? t.risk_level === risk : true;
         return matchesSearch && matchesStatus && matchesRisk;
+    });
+
+    // Maintain newest-first order after filtering
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.date_created || '1970-01-01');
+        const dateB = new Date(b.date_created || '1970-01-01');
+        return dateB - dateA; // Descending (newest first)
     });
 
     console.log(`Filtering tickets: ${filtered.length} of ${allTickets.length} match criteria`);
@@ -1220,7 +1298,7 @@ function editTicket(ticket) {
     const form = document.getElementById('ticketForm');
     populateTicketForm(form, ticket);
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '—';
+    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : 'â€”';
     const saveBtn = document.getElementById('ticketModalBtnSave');
     if (saveBtn) saveBtn.style.display = '';
     ticketModal.show();
@@ -1244,22 +1322,32 @@ function populateTicketForm(form, ticket) {
         }
     }
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '—';
+    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : 'â€”';
 }
+
+// Store current ticket for Viber export
+let currentViewTicket = null;
 
 /** Show ticket details in read-only popup (View Ticket modal, modern UI). */
 function viewTicket(ticket) {
-    document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || '—');
+    currentViewTicket = ticket; // Store for Viber export
+    document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || 'â€”');
+    const teamEl = document.getElementById('ticketViewModalTeamIndicator');
+    if (teamEl) {
+        const teamName = ticket.team && String(ticket.team).trim() ? String(ticket.team).trim() : '';
+        teamEl.textContent = teamName ? teamName : '';
+        teamEl.style.display = teamName ? '' : 'none';
+    }
     const set = function (id, value) {
         const el = document.getElementById(id);
-        if (el) el.textContent = value != null && String(value).trim() !== '' ? String(value).trim() : '—';
+        if (el) el.textContent = value != null && String(value).trim() !== '' ? String(value).trim() : 'â€”';
     };
     const setDate = function (id, value) {
         const el = document.getElementById(id);
         if (!el) return;
-        if (!value) { el.textContent = '—'; return; }
+        if (!value) { el.textContent = 'â€”'; return; }
         const d = new Date(value);
-        const str = isNaN(d.getTime()) ? '—' : value.split('T')[0];
+        const str = isNaN(d.getTime()) ? 'â€”' : value.split('T')[0];
         el.textContent = str;
     };
     set('tv-ticket_id_form', ticket.ticket_id_form);
@@ -1523,6 +1611,33 @@ function updateAnalytics(isRefresh = false) {
         }
     }
 
+    // Filter by region (works with all date options including custom range)
+    const analyticsRegionEl = document.getElementById('analytics-region');
+    const analyticsRegionVal = (analyticsRegionEl && analyticsRegionEl.value) ? String(analyticsRegionEl.value).trim() : '';
+    if (analyticsRegionVal) {
+        const REGION_DEFS_ANALYTICS = {
+            bukidnon: { type: 'city', areas: [{ key: 'VALENCIA' }, { key: 'MALAYBALAY' }, { key: 'MARAMAG' }, { key: 'QUEZON' }, { key: 'DON CARLOS' }, { key: 'MANOLO FORTICH' }, { key: 'IMPASUGONG' }, { key: 'SAN FERNANDO' }] },
+            davao_city: { type: 'cluster', areas: [{ key: 'NORTH' }, { key: 'SOUTH' }, { key: 'CENTRO' }] },
+            davao_del_sur: { type: 'city', areas: [{ key: 'DIGOS' }] },
+            cotabato: { type: 'city', areas: [{ key: 'KIDAPAWAN' }] },
+            cdo: { type: 'city', areas: [{ key: 'CDO' }] },
+            davao_del_norte: { type: 'city', areas: [{ key: 'PANABO' }, { key: 'TAGUM' }, { key: 'CARMEN' }] },
+            misamis_oriental: { type: 'city', areas: [{ key: 'TAGOLOAN' }, { key: 'VILLANUEVA' }, { key: 'BALINGASAG' }, { key: 'GINGOOG' }, { key: 'JASAAN' }, { key: 'CLAVERIA' }] }
+        };
+        const regionDef = REGION_DEFS_ANALYTICS[analyticsRegionVal];
+        if (regionDef) {
+            filtered = filtered.filter(t => {
+                const cityUpper = String(t.city || '').toUpperCase();
+                const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                return regionDef.areas.some(a => {
+                    if (regionDef.type === 'city') return cityUpper.indexOf(a.key) !== -1;
+                    if (regionDef.type === 'cluster') return clusterUpper.indexOf(a.key) !== -1;
+                    return false;
+                });
+            });
+        }
+    }
+
     // --- KPI Cards (Safe to update innerText without scroll jump) ---
     const total = filtered.length;
     const completed = filtered.filter(t => t.status && (t.status.toLowerCase().includes('done') || t.status.toLowerCase().includes('resolved'))).length;
@@ -1562,8 +1677,8 @@ function updateAnalytics(isRefresh = false) {
 
 
     // --- Trend Chart ---
-    // "This Week": daily buckets for 7 days (Sun–Sat).
-    // "This Month" or "Month & Year" with month: daily buckets (days 1–31).
+    // "This Week": daily buckets for 7 days (Sunâ€“Sat).
+    // "This Month" or "Month & Year" with month: daily buckets (days 1â€“31).
     // Otherwise: monthly buckets.
     const buckets = {};
     const monthEl = document.getElementById('analytics-month');
@@ -1579,7 +1694,7 @@ function updateAnalytics(isRefresh = false) {
     }
     const daysInTrendMonth = new Date(trendYear, trendMonth + 1, 0).getDate();
 
-    // For "This Week": get week bounds (Sun–Sat) and day index 0..6
+    // For "This Week": get week bounds (Sunâ€“Sat) and day index 0..6
     let weekStart = null;
     if (useWeeklyView) {
         weekStart = new Date(now);
@@ -1633,7 +1748,7 @@ function updateAnalytics(isRefresh = false) {
         labels = rawKeys.map(key => {
             const parts = String(key).split('-');
             const year = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10); // 1–12
+            const month = parseInt(parts[1], 10); // 1â€“12
             if (!isNaN(year) && !isNaN(month) && month >= 1 && month <= 12) {
                 return `${monthNames[month - 1]} ${year}`;
             }
@@ -1682,7 +1797,7 @@ function updateAnalytics(isRefresh = false) {
         });
     }
 
-    // --- Team Workload (horizontal bar) – not on Dashboard ---
+    // --- Team Workload (horizontal bar) â€“ not on Dashboard ---
     const teamCounts = {};
     filtered.forEach(t => {
         const team = (t.team || 'Unassigned').trim();
@@ -1719,7 +1834,7 @@ function updateAnalytics(isRefresh = false) {
         });
     }
 
-    // --- Completed vs Pending (horizontal bar) – not on Dashboard ---
+    // --- Completed vs Pending (horizontal bar) â€“ not on Dashboard ---
     const completedCount = filtered.filter(t => t.status && (String(t.status).toLowerCase().includes('done') || String(t.status).toLowerCase().includes('resolved') || String(t.status).toLowerCase().includes('complete') || String(t.status).toLowerCase().includes('fixed')));
     const pendingCount = filtered.length - completedCount.length;
     const compCtx = document.getElementById('completionPendingChart');
@@ -1826,9 +1941,9 @@ function loadTeamDetails() {
         return;
     }
 
-    const teamTickets = allTickets.filter(t => t.team === team);
+    const teamTickets = allTickets.filter(t => (t.team || '').trim().toUpperCase() === team);
     window._activeWorkloadTickets = teamTickets;
-    window._activeWorkloadSortColumn = window._activeWorkloadSortColumn || '';
+    window._activeWorkloadSortColumn = window._activeWorkloadSorColumn || '';
     window._activeWorkloadSortDirection = window._activeWorkloadSortDirection || 1;
 
     const total = teamTickets.length;
@@ -1963,3 +2078,285 @@ function updateActiveWorkloadTableBody() {
         </tr>
     `).join('') : '<tr><td colspan="4" class="text-center py-4 text-muted">No tickets assigned to this team.</td></tr>';
 }
+
+// --- Checkbox and Viber (5-ticket limit) – logic from test.php ---
+const MAX_VIBER_TICKETS = 5;
+
+function handleTicketCheckboxChange(checkbox) {
+    try {
+        const tbody = document.getElementById('tickets-table-body');
+        if (!tbody) {
+            updateExportButton();
+            return;
+        }
+        const allBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox');
+        const totalBoxes = allBoxes.length;
+        const checkedList = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked');
+        const uniqueCheckedIds = new Set(Array.from(checkedList).map(cb => cb.value));
+        const checkedIds = Array.from(uniqueCheckedIds);
+        const uncheckedCount = totalBoxes - checkedList.length;
+        const thisTicketId = checkbox.value;
+        const isThisInChecked = uniqueCheckedIds.has(thisTicketId);
+
+        if (!checkbox.checked) {
+            updateExportButton();
+            return;
+        }
+        const uniqueCount = uniqueCheckedIds.size;
+        if (uniqueCount > MAX_VIBER_TICKETS) {
+            checkbox.checked = false;
+            showToast('Only up to 5 tickets can be sent via Viber.', 'error');
+        }
+        updateExportButton();
+    } catch (e) {
+        console.error('handleTicketCheckboxChange:', e);
+    }
+}
+
+function updateExportButton() {
+    try {
+        const tbody = document.getElementById('tickets-table-body');
+        if (!tbody) return;
+        const allBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox');
+        const checkedBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked');
+        const totalBoxes = allBoxes.length;
+        selectedTicketIds.clear();
+        checkedBoxes.forEach(cb => selectedTicketIds.add(cb.value));
+        const uniqueCount = selectedTicketIds.size;
+        const selectedIds = [...selectedTicketIds];
+
+        const viberBtn = document.getElementById('viber-export-btn');
+        const clearBtn = document.getElementById('clear-selection-btn');
+        const countEl = document.getElementById('viber-selection-count');
+        if (viberBtn) {
+            viberBtn.style.display = 'inline-block';
+            viberBtn.disabled = uniqueCount < 1 || uniqueCount > MAX_VIBER_TICKETS;
+        }
+        if (clearBtn) {
+            clearBtn.style.display = uniqueCount > 0 ? 'inline-block' : 'none';
+        }
+        if (countEl) {
+            if (uniqueCount > 0) {
+                countEl.style.display = '';
+                countEl.textContent = uniqueCount === 1 ? '1 ticket selected' : uniqueCount + ' tickets selected';
+            } else {
+                countEl.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('updateExportButton:', e);
+    }
+}
+
+function clearAllSelections() {
+    try {
+        const tbody = document.getElementById('tickets-table-body');
+        const checkboxes = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox') : [];
+        selectedTicketIds.clear();
+        checkboxes.forEach(cb => cb.checked = false);
+        updateExportButton();
+        showToast('All selections cleared', 'success');
+    } catch (e) {
+        console.error('clearAllSelections:', e);
+    }
+}
+
+// --- Viber Export Functions ---
+
+function formatTicketForViber(ticket) {
+    const formatValue = (val) => val != null && String(val).trim() !== '' ? String(val).trim() : 'N/A';
+    const formatDate = (val) => {
+        if (!val) return 'N/A';
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? val : val.split('T')[0];
+    };
+
+    return `TICKET DETAILS
+Ticket #: ${formatValue(ticket.ticket_id_form)}
+JO Number: ${formatValue(ticket.ticket_id)}
+Date Created: ${formatDate(ticket.date_created)}
+Customer: ${formatValue(ticket.customer_name)}
+Account: ${formatValue(ticket.account_number)}
+Address: ${formatValue(ticket.address)}
+Issue: ${formatValue(ticket.description)}
+Status: ${formatValue(ticket.status ? normalizeStatus(ticket.status) : ticket.status)}
+Risk Level: ${formatValue(ticket.risk_level)}
+Team: ${formatValue(ticket.team)}
+Technician: ${formatValue(ticket.technician)}
+Date Started: ${formatDate(ticket.date_started)}
+Date Completed: ${formatDate(ticket.date_completed)}
+Remarks: ${formatValue(ticket.remarks)}
+`;
+}
+
+// Clipboard-only Viber sending (no deep-link) to avoid truncation and keep ALL data.
+function copyTextToClipboardWithFallback(text, successMessage) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (successMessage) showToast(successMessage, 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                if (successMessage) showToast(successMessage, 'success');
+            } catch (err) {
+                showToast('Please copy manually and paste into Viber', 'info');
+            }
+            document.body.removeChild(textarea);
+        });
+    } else {
+        showToast('Please copy manually and paste into Viber', 'info');
+    }
+}
+
+function sendTicketViaViber(ticket) {
+    if (!ticket) {
+        showToast('No ticket data available', 'error');
+        return;
+    }   
+
+    const message = formatTicketForViber(ticket);
+    copyTextToClipboardWithFallback(message, 'Full ticket copied! Please paste in Viber (Ctrl+V)');
+    openViberApp();
+}
+
+function sendCurrentTicketViaViber() {
+    if (currentViewTicket) {
+        sendTicketViaViber(currentViewTicket);
+    } else {
+        showToast('No ticket data available', 'error');
+    }
+}
+
+function sendSelectedTicketsViaViber() {
+    try {
+        const tbody = document.getElementById('tickets-table-body');
+        const checkboxes = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked') : [];
+        if (checkboxes.length === 0) {
+            showToast('Please select at least one ticket', 'error');
+            return;
+        }
+        if (checkboxes.length > MAX_VIBER_TICKETS) {
+            showToast('Only up to 5 tickets can be sent via Viber.', 'error');
+            return;
+        }
+
+        // Build list from checked checkboxes only (one ticket per checkbox) so count always matches.
+        const selectedTickets = Array.from(checkboxes).map(cb => {
+            return allTickets.find(t => String(t.ticket_id) === cb.value);
+        }).filter(Boolean);
+
+        const count = selectedTickets.length;
+
+        // Format multiple tickets: "1. TICKET DETAILS\n..." then "2. TICKET DETAILS..." etc.
+        const messages = selectedTickets.map((ticket, index) => {
+            const ticketText = formatTicketForViber(ticket);
+            return `${index + 1}. ${ticketText}`;
+        });
+
+        const combinedMessage = messages.join('\n\n');
+
+        copyTextToClipboardWithFallback(combinedMessage, `Full details for ${count} ticket(s) copied! Paste in Viber (Ctrl+V)`);
+        openViberApp();
+
+        // Clear checkboxes after send
+        selectedTicketIds.clear();
+        if (tbody) {
+            tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox').forEach(cb => { cb.checked = false; });
+        }
+        updateExportButton();
+    } catch (e) {
+        console.error('sendSelectedTicketsViaViber:', e);
+    }
+}
+
+// Open Viber with a short hint only. Full ticket text is always copied to clipboard (no URL length limit / truncation).
+function openViberApp() {
+    try {
+        const hint = 'Paste ticket details from clipboard here (Ctrl+V).';
+        const openUrl = 'viber://forward?text=' + encodeURIComponent(hint);
+        const link = document.createElement('a');
+        link.href = openUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (e) {
+        console.warn('Viber open link failed:', e);
+    }
+}
+
+// --- New Tickets Notification Badge ---
+
+function checkForNewTickets() {
+    if (!allTickets || allTickets.length === 0) return;
+
+    // Get last seen ticket ID from localStorage
+    const lastSeenTicketId = localStorage.getItem('lastSeenTicketId');
+    const lastSeenTimestamp = localStorage.getItem('lastSeenTicketTimestamp');
+
+    if (!lastSeenTicketId && !lastSeenTimestamp) {
+        // First time - store current newest ticket
+        const newestTicket = allTickets[0]; // Already sorted newest first
+        if (newestTicket && newestTicket.ticket_id) {
+            localStorage.setItem('lastSeenTicketId', String(newestTicket.ticket_id));
+            localStorage.setItem('lastSeenTicketTimestamp', String(Date.now()));
+        }
+        return;
+    }
+
+    // Count new tickets
+    let newCount = 0;
+    if (lastSeenTicketId) {
+        // Count tickets newer than last seen ID
+        const lastSeenIndex = allTickets.findIndex(t => String(t.ticket_id) === lastSeenTicketId);
+        if (lastSeenIndex > 0) {
+            newCount = lastSeenIndex;
+        } else if (lastSeenIndex === -1) {
+            // Last seen ticket not found - might be deleted, count all as new
+            newCount = allTickets.length;
+        }
+    } else if (lastSeenTimestamp) {
+        // Fallback: count by timestamp
+        const lastSeenTime = parseInt(lastSeenTimestamp);
+        newCount = allTickets.filter(t => {
+            if (!t.date_created) return false;
+            const ticketTime = new Date(t.date_created).getTime();
+            return ticketTime > lastSeenTime;
+        }).length;
+    }
+
+    // Update badge
+    const badge = document.getElementById('new-tickets-badge');
+    if (badge) {
+        if (newCount > 0) {
+            badge.textContent = newCount > 99 ? '99+' : newCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    // Update last seen when user clicks Dashboard
+    const dashboardLink = document.querySelector('a[onclick="showTab(\'dashboard\')"]');
+    if (dashboardLink && !dashboardLink.dataset.listenerAdded) {
+        dashboardLink.addEventListener('click', function() {
+            // Update last seen to current newest ticket
+            if (allTickets.length > 0 && allTickets[0].ticket_id) {
+                localStorage.setItem('lastSeenTicketId', String(allTickets[0].ticket_id));
+                localStorage.setItem('lastSeenTicketTimestamp', String(Date.now()));
+                // Hide badge
+                const badge = document.getElementById('new-tickets-badge');
+                if (badge) badge.style.display = 'none';
+            }
+        });
+        dashboardLink.dataset.listenerAdded = 'true';
+    }
+}
+

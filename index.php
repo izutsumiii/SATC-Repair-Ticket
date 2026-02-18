@@ -28,6 +28,7 @@
                         <a class="nav-link active" onclick="showTab('dashboard')">
                             <i class="fas fa-home"></i>
                             <span class="nav-text">Dashboard</span>
+                            <span class="badge bg-danger rounded-pill ms-2" id="new-tickets-badge" style="display: none;">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -100,8 +101,8 @@
                             <option value="">Year</option>
                             <?php
                             $currentYear = (int)date('Y');
-                            $startYear = $currentYear - 5;
-                            $endYear = $currentYear + 2;
+                            $startYear = $currentYear - 10;
+                            $endYear = $currentYear + 10;
                             for ($y = $endYear; $y >= $startYear; $y--) {
                                 echo '<option value="' . $y . '"' . ($y === $currentYear ? ' selected' : '') . '>' . $y . '</option>';
                             }
@@ -112,7 +113,7 @@
 
                 <div class="row g-4 mb-4" id="summary-cards">
                     <!-- Cards injected via JS -->
-                    <div class="col-12 text-center"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted fw-medium">Loading Data. Please Wait...</p></div>
+                    <div class="col-12 section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div>
                 </div>
 
                 <div class="row g-4">
@@ -164,7 +165,7 @@
                 <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
                     <div class="d-flex flex-wrap gap-3 flex-grow-1" id="clusters-summary-cards">
                         <!-- Injected via JS -->
-                        <div class="text-center py-3"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted fw-medium">Loading Data. Please Wait...</p></div>
+                        <div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div>
                     </div>
                     <div class="d-flex flex-nowrap align-items-center gap-2">
                         <select class="form-select form-select-sm shadow-sm" id="clusters-region" style="min-width: 160px;" onchange="updateClusters()">
@@ -196,8 +197,8 @@
                             <option value="">Year</option>
                             <?php
                             $currentYear = (int)date('Y');
-                            $startYear = $currentYear - 5;
-                            $endYear = $currentYear + 2;
+                            $startYear = $currentYear - 10;
+                            $endYear = $currentYear + 10;
                             for ($y = $endYear; $y >= $startYear; $y--) {
                                 echo '<option value="' . $y . '">' . $y . '</option>';
                             }
@@ -227,51 +228,63 @@
 
             <!-- Analytics Tab -->
             <div id="analytics-view" class="hidden-section">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom gap-3">
-                    <h1 class="h2">Data Analytics</h1>
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-filter" onchange="toggleMonthYearDropdowns(); updateAnalytics();">
-                            <option value="all">All Time</option>
-                            <option value="year">This Year</option>
-                            <option value="month">This Month</option>
-                            <option value="week">This Week</option>
-                            <option value="monthyear">Month & Year</option>
-                            <option value="custom">Custom Date Range</option>
-                        </select>
-                        
-                        <div class="d-none" id="analytics-monthyear-group" style="display: flex; gap: 0.5rem;">
-                            <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-month" onchange="updateAnalytics()">
-                                <option value="">Month</option>
-                                <option value="1">January</option>
-                                <option value="2">February</option>
-                                <option value="3">March</option>
-                                <option value="4">April</option>
-                                <option value="5">May</option>
-                                <option value="6">June</option>
-                                <option value="7">July</option>
-                                <option value="8">August</option>
-                                <option value="9">September</option>
-                                <option value="10">October</option>
-                                <option value="11">November</option>
-                                <option value="12">December</option>
+                <div class="d-flex justify-content-between flex-wrap align-items-flex-start pt-3 pb-2 mb-3 border-bottom gap-3">
+                    <h1 class="h2 mb-0">Data Analytics</h1>
+                    <div class="analytics-controls-wrap d-flex flex-wrap gap-2 align-items-center">
+                        <div class="d-flex flex-nowrap gap-2 align-items-center">
+                            <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-region" style="min-width: 160px;" onchange="updateAnalytics()" title="Filter by region">
+                                <option value="">All Regions</option>
+                                <option value="bukidnon">Bukidnon</option>
+                                <option value="davao_city">Davao City</option>
+                                <option value="davao_del_sur">Davao Del Sur</option>
+                                <option value="davao_del_norte">Davao del Norte</option>
+                                <option value="cotabato">Cotabato</option>
+                                <option value="cdo">CDO</option>
+                                <option value="misamis_oriental">Misamis Oriental</option>
                             </select>
-                            <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-year" onchange="updateAnalytics()">
-                                <option value="">Year</option>
-                                <?php
-                                $currentYear = (int)date('Y');
-                                $startYear = $currentYear - 5;
-                                $endYear = $currentYear + 2;
-                                for ($y = $endYear; $y >= $startYear; $y--) {
-                                    echo '<option value="' . $y . '"' . ($y === $currentYear ? ' selected' : '') . '>' . $y . '</option>';
-                                }
-                                ?>
+                            <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-filter" onchange="toggleMonthYearDropdowns(); updateAnalytics();">
+                                <option value="all">All Time</option>
+                                <option value="year">This Year</option>
+                                <option value="month">This Month</option>
+                                <option value="week">This Week</option>
+                                <option value="monthyear">Month & Year</option>
+                                <option value="custom">Custom Date Range</option>
                             </select>
+                            <div class="d-none" id="analytics-monthyear-group" style="display: flex; gap: 0.5rem;">
+                                <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-month" onchange="updateAnalytics()">
+                                    <option value="">Month</option>
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-year" onchange="updateAnalytics()">
+                                    <option value="">Year</option>
+                                    <?php
+                                    $currentYear = (int)date('Y');
+                                    $startYear = $currentYear - 10;
+                                    $endYear = $currentYear + 10;
+                                    for ($y = $endYear; $y >= $startYear; $y--) {
+                                        echo '<option value="' . $y . '"' . ($y === $currentYear ? ' selected' : '') . '>' . $y . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
                         </div>
-                        
-                        <div class="d-none" id="analytics-custom-group" style="display: flex; gap: 0.5rem; align-items: center;">
-                            <input type="date" class="form-control form-control-sm shadow-sm" id="analytics-date-from" onchange="updateAnalytics()" placeholder="From">
-                            <span class="text-muted">to</span>
-                            <input type="date" class="form-control form-control-sm shadow-sm" id="analytics-date-to" onchange="updateAnalytics()" placeholder="To">
+                        <div class="d-none analytics-custom-row" id="analytics-custom-group" style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem;">
+                            <div class="analytics-custom-inner">
+                                <input type="date" class="form-control form-control-sm shadow-sm analytics-custom-date" id="analytics-date-from" onchange="updateAnalytics()" placeholder="From">
+                                <span class="text-muted small">to</span>
+                                <input type="date" class="form-control form-control-sm shadow-sm analytics-custom-date" id="analytics-date-to" onchange="updateAnalytics()" placeholder="To">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -350,7 +363,7 @@
                             </div>
                             <div class="card-body top-issues-card-body">
                                 <ul class="top-issues-list" id="top-issues-list">
-                                    <li class="top-issues-empty"><div class="spinner-border text-primary mb-2"></div><p class="mb-0 fw-medium">Loading Data. Please Wait...</p></li>
+                                    <li class="top-issues-empty section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></li>
                                 </ul>
                             </div>
                         </div>
@@ -427,21 +440,32 @@
                             </div>
                         </div>
 
-                        <p class="text-muted small d-md-none mb-2" aria-hidden="true"><i class="fas fa-arrows-alt-h me-1"></i> Swipe left to see more columns</p>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <p class="text-muted small d-md-none mb-0" aria-hidden="true"><i class="fas fa-arrows-alt-h me-1"></i> Swipe left to see more columns</p>
+                            <div class="ms-auto d-flex gap-2 align-items-center">
+                                <span id="viber-selection-count" class="text-muted small align-middle me-2" style="min-width: 7rem; display: none;">0 tickets selected</span>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()" id="clear-selection-btn" style="display: none;">
+                                    <i class="fas fa-times me-1"></i> Clear Selection
+                                </button>
+                                <button class="btn btn-sm btn-success" onclick="sendSelectedTicketsViaViber()" id="viber-export-btn" disabled>
+                                    <i class="fas fa-paper-plane me-1"></i> Send via Viber
+                                </button>
+                            </div>
+                        </div>
                         <div class="tickets-table-wrapper table-responsive">
                             <table class="table table-hover align-middle mb-0" id="tickets-table">
                                 <thead class="position-sticky top-0" style="z-index: 10;">
                                     <tr>
-                                        <th onclick="sortTable('ticket_id_form')" class="border-0 rounded-start shadow-sm">Ticket number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('ticket_id')" class="border-0 shadow-sm">JO number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('account_number')" class="border-0 shadow-sm">Account number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('date_created')" class="border-0 shadow-sm">Date <i class="fas fa-sort small ms-1"></i></th>
-                                        <th class="border-0 shadow-sm">Customer</th>
-                                        <th class="border-0 shadow-sm">Issue</th>
-                                        <th class="border-0 shadow-sm">Status</th>
-                                        <th class="border-0 shadow-sm">Risk</th>
-                                        <th class="border-0 shadow-sm">Team</th>
-                                        <th class="border-0 rounded-end text-end shadow-sm">Actions</th>
+                                        <th colspan="2" onclick="sortTable('ticket_id_form')" class="border-0 rounded-start shadow-sm text-start tickets-table-th-ticket-number">Ticket number <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('ticket_id')" class="border-0 shadow-sm text-start">JO number <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('account_number')" class="border-0 shadow-sm text-start">Account number <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('date_created')" class="border-0 shadow-sm text-start">Date <i class="fas fa-sort small ms-1"></i></th>
+                                        <th class="border-0 shadow-sm text-start">Customer</th>
+                                        <th class="border-0 shadow-sm text-start">Issue</th>
+                                        <th class="border-0 shadow-sm text-start">Status</th>
+                                        <th class="border-0 shadow-sm text-start">Risk</th>
+                                        <th class="border-0 shadow-sm text-start">Team</th>
+                                        <th class="border-0 rounded-end shadow-sm text-start">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tickets-table-body" class="border-top-0">
@@ -628,7 +652,10 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content ticket-view-modal-content">
             <div class="modal-header ticket-view-modal-header">
-                <h5 class="modal-title" id="ticketViewModalTitle">View Ticket</h5>
+                <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
+                    <h5 class="modal-title mb-0" id="ticketViewModalTitle">View Ticket</h5>
+                    <span class="ticket-view-team-indicator" id="ticketViewModalTeamIndicator" aria-hidden="true"></span>
+                </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body ticket-view-modal-body">
@@ -668,6 +695,9 @@
                 </div>
             </div>
             <div class="modal-footer ticket-view-modal-footer">
+                <button type="button" class="btn btn-success" onclick="sendCurrentTicketViaViber()">
+                    <i class="fas fa-paper-plane me-1"></i> Send via Viber
+                </button>
                 <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
