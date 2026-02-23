@@ -1,48 +1,69 @@
 # SATC Repair Ticketing System
 
-A web-based Repair Ticketing System. Can be used with **Local CSV** or **Google Sheets (Apps Script)**.
-
-## 🚀 Setup for Google Sheets (Apps Script)
-
-If you want to use Google Sheets as your database:
-
-### 1. Prepare Google Sheet
-1. Create a new Google Sheet.
-2. In the first row, add these exact headers:
-   `Ticket ID`, `Date Created`, `Customer / Unit Name`, `Repair Description`, `Repair Status`, `Risk Level`, `Repair Group / Team`, `Assigned Technician`, `Date Started`, `Date Completed`, `Remarks`
-
-### 2. Add the Script
-1. In your Google Sheet, go to **Extensions > Apps Script**.
-2. Delete any code there.
-3. Open `google_apps_script.js` from this project folder.
-4. Copy the entire content and paste it into the Google Apps Script editor.
-5. Save the project (Name it "SATC Repair API").
-
-### 3. Deploy as Web App
-1. Click **Deploy** (blue button) > **New deployment**.
-2. **Select type:** Web app.
-3. **Configuration:**
-   - **Description:** SATC API
-   - **Execute as:** Me (your email)
-   - **Who has access:** Anyone (This is required for the app to access it)
-4. Click **Deploy**.
-5. **Copy the "Web app URL"** (it ends in `/exec`).
-
-### 4. Connect the App
-1. Open `assets/js/app.js` in this project.
-2. Find the line:
-   ```javascript
-   const API_MODE = 'gas'; 
-   const GAS_URL = 'YOUR_GOOGLE_SCRIPT_WEB_APP_URL_HERE';
-   ```
-3. Paste your Web App URL inside the quotes for `GAS_URL`.
-4. Save the file.
-5. Refresh your browser.
+Web-based repair ticketing with login, roles, and optional Google Sheets (GAS) or local CSV for ticket data.
 
 ---
 
-## Setup for Local PHP / CSV (Legacy)
-If you prefer the local file method:
-1. Open `assets/js/app.js`.
-2. Change `const API_MODE = 'gas';` to `const API_MODE = 'php';`.
-3. Ensure `data/tickets.csv` is writable.
+## Quick setup (PHP, Composer, and dependencies)
+
+### 1. PHP
+
+- **Version:** PHP 7.4 or newer (e.g. the PHP that comes with XAMPP).
+- **Extensions:** Enable `pdo_sqlite`, `json`, `mbstring`, `openssl`, `ctype`, `filter` in `php.ini` (XAMPP usually has these on).
+
+### 2. Composer
+
+Composer is the PHP dependency manager. The project uses it for PHPMailer (emails).
+
+- **Install Composer (Windows):**
+  1. Download the Windows installer: [https://getcomposer.org/Composer-Setup.exe](https://getcomposer.org/Composer-Setup.exe).
+  2. Run it and point the **PHP executable** to your XAMPP PHP, e.g. `C:\xampp\php\php.exe`.
+  3. Finish the installer. Restart the terminal (or Cursor) so `composer` is on the PATH.
+
+- **Or install manually:** Download `composer.phar` from [getcomposer.org](https://getcomposer.org/download/) and run `php composer.phar` instead of `composer` in the steps below.
+
+### 3. Install project dependencies
+
+In a terminal, go to the **project root** (the folder that contains `composer.json`) and run:
+
+```bash
+cd "C:\xampp\htdocs\SATC REPAIR TICKET"
+composer install
+```
+
+This creates the `vendor/` folder and installs PHPMailer. **Do not edit files inside `vendor/`**; they are managed by Composer.
+
+### 4. One-time app setup
+
+- **Users database:** Open **setup_users.php** in the browser once (e.g. `http://localhost/SATC%20REPAIR%20TICKET/setup_users.php`) to create the users DB and optional test accounts.
+- **Mail (password reset / new user emails):** Copy `api/mail_config.php.example` to `api/mail_config.php` and set your SMTP credentials (see [docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md)).
+
+For the rest (Google Sheets, roles, security), see the docs below.
+
+---
+
+## Documentation
+
+- **End users:** See [docs/USER_MANUAL.md](docs/USER_MANUAL.md) for first-time login, dashboard, tickets, and forgot password.
+- **Admin / System Administrator:** See [docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md) for install, Google Sheets, mail (SMTP), user management, and security.
+
+**Folder layout:** `api/` (backend), `assets/` (css, js), `data/` (users DB, tokens), `docs/` (User Manual and Admin Setup), `scripts/` (Google Apps Script code: copy from `scripts/google_apps_script.js` into GAS), `vendor/` (Composer dependencies — do not edit).
+
+---
+
+## Sharing or deploying this project
+
+If you **copy or zip the entire project folder and send it to someone else** (or move it to another server):
+
+- **Include the `vendor/` folder.** Then they **do not need Composer or PHPMailer installed**. They only need PHP (e.g. XAMPP) and to configure `api/mail_config.php` for their SMTP. **Forgot password** and **new-user login emails** (from Manage users) will then work.
+- **If you omit `vendor/`** (e.g. you exclude it to reduce size), the other person must run `composer install` on their machine (with Composer and PHP) to recreate `vendor/`; otherwise the app will error when sending emails.
+
+So: **include `vendor/` when you forward the system** and the recipient can use email without installing Composer.
+
+---
+
+## Why are “PHP version” and “autoload static” shown in red in my editor?
+
+- **PHP version in red:** The editor (e.g. Cursor/VS Code) can’t find your PHP executable, so it can’t show or validate the PHP version. Fix it by telling the editor where PHP is:
+  - **Cursor/VS Code:** Install the “PHP” or “PHP Intelephense” extension, then in **Settings** set the PHP path, e.g. `C:\xampp\php\php.exe` (Settings → search “php executable” or add `"php.validate.executablePath": "C:\\xampp\\php\\php.exe"` in your user or workspace settings). After that, the version usually turns normal and validation works.
+- **Autoload / static classloading in red:** The `vendor/composer/autoload_static.php` (and similar) files are **generated by Composer**. Some extensions mark them as “generated” or report minor analysis warnings there. You can **ignore** those red marks in `vendor/`; they don’t affect the app. If something breaks after changing `composer.json`, run `composer dump-autoload` or `composer install` again to refresh autoload files.

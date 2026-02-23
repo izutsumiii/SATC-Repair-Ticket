@@ -124,6 +124,59 @@ document.addEventListener('DOMContentLoaded', () => {
     showTab('dashboard');
     startAutoRefresh();
 
+    const addUserSubmit = document.getElementById('addUserSubmit');
+    const addUserForm = document.getElementById('addUserForm');
+    if (addUserSubmit && addUserForm) {
+        addUserSubmit.addEventListener('click', async () => {
+            const email = (addUserForm.querySelector('[name="email"]') || {}).value;
+            const display_name = (addUserForm.querySelector('[name="display_name"]') || {}).value;
+            const role = (addUserForm.querySelector('[name="role"]') || {}).value;
+            if (!email || !email.trim()) {
+                showToast('Email is required.', 'error');
+                return;
+            }
+            const trimmedEmail = email.trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+                showToast('Please enter a valid email address.', 'error');
+                return;
+            }
+            const originalLabel = addUserSubmit.innerHTML;
+            addUserSubmit.disabled = true;
+            addUserSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Adding...';
+            const minLoadingMs = 600;
+            const startTime = Date.now();
+            try {
+                const r = await fetch('api/users.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: trimmedEmail, display_name: display_name.trim(), role: role || 'staff' })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok && data.success) {
+                    if (data.email_sent) {
+                        showToast('User created. Login details have been sent to their email.', 'success');
+                    } else {
+                        showToast((data.email_error || 'User created. Email could not be sent; send credentials manually.'), 'info');
+                    }
+                    addUserForm.reset();
+                    bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
+                    if (activeTab === 'users') await loadUsersManagement();
+                } else {
+                    showToast(data.error || 'Failed to add user.', 'error');
+                }
+            } catch (e) {
+                showToast('Request failed.', 'error');
+            } finally {
+                const elapsed = Date.now() - startTime;
+                const wait = Math.max(0, minLoadingMs - elapsed);
+                setTimeout(() => {
+                    addUserSubmit.disabled = false;
+                    addUserSubmit.innerHTML = originalLabel;
+                }, wait);
+            }
+        });
+    }
+
     // Use event delegation so Month/Year filter works even if dashboard DOM is updated
     const dashboardView = document.getElementById('dashboard-view');
     if (dashboardView) {
@@ -216,6 +269,7 @@ async function refreshCurrentTab() {
     else if (activeTab === 'tickets') await loadTickets(true); // Preserve filters during auto-refresh
     else if (activeTab === 'analytics') await loadAnalytics();
     else if (activeTab === 'teams') await loadTeams();
+    else if (activeTab === 'users') await loadUsersManagement();
 }
 
 // Navigation
@@ -223,7 +277,7 @@ function showTab(tabId) {
     activeTab = tabId; // Update active state
     
     // Hide all views
-    ['dashboard-view', 'clusters-view', 'analytics-view', 'tickets-view', 'teams-view'].forEach(id => {
+    ['dashboard-view', 'clusters-view', 'analytics-view', 'tickets-view', 'teams-view', 'users-view'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden-section');
     });
@@ -231,7 +285,8 @@ function showTab(tabId) {
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
     
     // Show selected view
-    document.getElementById(tabId + '-view').classList.remove('hidden-section');
+    const viewEl = document.getElementById(tabId + '-view');
+    if (viewEl) viewEl.classList.remove('hidden-section');
     // Set active nav (approximate match)
     const navLink = document.querySelector(`.nav-link[onclick="showTab('${tabId}')"]`);
     if (navLink) navLink.classList.add('active');
@@ -1080,11 +1135,7 @@ function renderTicketsTable(tickets) {
             </td>
             <td><span class="badge bg-${riskColor}" title="${escapeAttr(t.risk_level)}">${escapeHtml(t.risk_level)}</span></td>
             <td><span class="small text-muted"><i class="fas fa-users me-1"></i> ${escapeHtml(t.team) || 'Unassigned'}</span></td>
-            <td class="pe-3">
-                <button class="btn btn-sm btn-light text-primary border-0 shadow-sm" onclick='editTicket(${JSON.stringify(t)})'>
-                    <i class="fas fa-edit"></i> Edit
-                </button>
-            </td>
+            ${(function() { var canEdit = (typeof window.USER_ROLE === 'undefined' || window.USER_ROLE !== 'staff'); return canEdit ? '<td class=\"tickets-actions-cell\"><button type=\"button\" class=\"btn btn-sm tickets-action-btn\" onclick=\'editTicket(' + JSON.stringify(t) + ')\' title=\"Edit ticket\"><i class=\"fas fa-edit\"></i> Edit</button></td>' : '<td class=\"tickets-actions-cell\"></td>'; })()}
         </tr>
     `}).join('');
     
@@ -1924,6 +1975,175 @@ async function loadTeams() {
     if(currentVal) select.value = currentVal;
 }
 
+const ROLE_LABELS = { programmer: 'System Administrator', company_owner: 'Admin', staff: 'Staff', maintenance_provider: 'System Administrator' };
+
+async function loadUsersManagement() {
+    const tbody = document.getElementById('users-table-body');
+    if (!tbody) return;
+    try {
+        const r = await fetch('api/users.php');
+        if (!r.ok) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Unable to load users.</td></tr>';
+            return;
+        }
+        const list = await r.json();
+        if (!Array.isArray(list)) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No users.</td></tr>';
+            return;
+        }
+        window._usersList = list;
+        const isAdmin = (window.USER_ROLE || '') === 'company_owner';
+        const isSystemAdminUser = (r) => r === 'programmer' || r === 'maintenance_provider';
+        const formatCreated = (createdAt) => {
+            if (!createdAt) return '—';
+            const d = new Date(createdAt);
+            return isNaN(d.getTime()) ? createdAt : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        };
+        tbody.innerHTML = list.map(u => {
+            const un = escapeHtml(u.username);
+            const em = escapeHtml(u.email);
+            const dn = escapeHtml(u.display_name || u.username);
+            const created = formatCreated(u.created_at);
+            const showActions = !isAdmin || !isSystemAdminUser(u.role);
+            const actionsCell = showActions
+                ? `<td class="users-actions-cell">
+                    <button type="button" class="btn btn-sm users-action-btn users-action-edit btn-edit-user" data-username="${un}" title="Edit"><i class="fas fa-pen"></i><span>Edit</span></button>
+                    <button type="button" class="btn btn-sm users-action-btn users-action-resend btn-resend-user" data-username="${un}" title="Resend login email"><i class="fas fa-paper-plane"></i><span>Resend</span></button>
+                    <button type="button" class="btn btn-sm users-action-btn users-action-delete btn-delete-user" data-username="${un}" data-display-name="${dn}" title="Delete"><i class="fas fa-user-minus"></i><span>Delete</span></button>
+                </td>`
+                : '<td class="users-actions-cell text-muted small">—</td>';
+            return `<tr>
+                <td>${em}</td>
+                <td>${dn}</td>
+                <td>${ROLE_LABELS[u.role] || u.role}</td>
+                <td class="text-muted small">${escapeHtml(created)}</td>
+                ${actionsCell}
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Failed to load users.</td></tr>';
+    }
+}
+
+// Manage users: Edit, Delete, Resend (event delegation)
+document.body.addEventListener('click', async function(e) {
+    const editBtn = e.target.closest('.btn-edit-user');
+    const deleteBtn = e.target.closest('.btn-delete-user');
+    const resendBtn = e.target.closest('.btn-resend-user');
+    if (editBtn) {
+        const username = editBtn.getAttribute('data-username');
+        const list = window._usersList;
+        const user = list && list.find(u => u.username === username);
+        if (user) {
+            document.getElementById('editUserUsername').value = user.username;
+            document.getElementById('editUserEmail').value = user.email || '';
+            document.getElementById('editUserDisplayName').value = user.display_name || '';
+            document.getElementById('editUserRole').value = user.role || 'staff';
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
+    } else if (deleteBtn) {
+        const username = deleteBtn.getAttribute('data-username');
+        const displayName = deleteBtn.getAttribute('data-display-name') || username;
+        if (!username) return;
+        document.getElementById('deleteUserConfirmName').textContent = displayName;
+        document.getElementById('deleteUserConfirmBtn').setAttribute('data-pending-username', username);
+        new bootstrap.Modal(document.getElementById('deleteUserConfirmModal')).show();
+    } else if (resendBtn) {
+        const username = resendBtn.getAttribute('data-username');
+        if (!username) return;
+
+        resendBtn.disabled = true;
+        try {
+            const r = await fetch('api/users.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resend', username }) });
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data.success) {
+                showToast(data.email_sent ? 'New login details sent to user\'s email.' : (data.email_error || 'Email could not be sent; share credentials manually.'), data.email_sent ? 'success' : 'info');
+            } else {
+                showToast(data.error || 'Failed to resend.', 'error');
+            }
+        } catch (err) {
+            showToast('Request failed.', 'error');
+        }
+        resendBtn.disabled = false;
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const editUserSubmit = document.getElementById('editUserSubmit');
+    const editUserForm = document.getElementById('editUserForm');
+    if (editUserSubmit && editUserForm) {
+        editUserSubmit.addEventListener('click', async function() {
+            const username = document.getElementById('editUserUsername').value;
+            const email = (document.getElementById('editUserEmail') || {}).value;
+            const display_name = document.getElementById('editUserDisplayName').value;
+            const role = document.getElementById('editUserRole').value;
+            if (!username) return;
+            const trimmedEmail = (email || '').trim();
+            if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+                showToast('Please enter a valid email address.', 'error');
+                return;
+            }
+            editUserSubmit.disabled = true;
+            try {
+                const r = await fetch('api/users.php', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email: trimmedEmail, display_name: display_name.trim(), role: role || 'staff' })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok && data.success) {
+                    showToast('User updated.', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal'))?.hide();
+                    if (activeTab === 'users') await loadUsersManagement();
+                } else {
+                    showToast(data.error || 'Failed to update user.', 'error');
+                }
+            } catch (e) {
+                showToast('Request failed.', 'error');
+            }
+            editUserSubmit.disabled = false;
+        });
+    }
+
+    const deleteUserConfirmBtn = document.getElementById('deleteUserConfirmBtn');
+    if (deleteUserConfirmBtn) {
+        deleteUserConfirmBtn.addEventListener('click', async function() {
+            const username = deleteUserConfirmBtn.getAttribute('data-pending-username');
+            if (!username) return;
+            deleteUserConfirmBtn.disabled = true;
+            const originalLabel = deleteUserConfirmBtn.innerHTML;
+            deleteUserConfirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Deleting...';
+            try {
+                const r = await fetch('api/users.php', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok && data.success) {
+                    showToast('User deleted.', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('deleteUserConfirmModal'))?.hide();
+                    if (activeTab === 'users') await loadUsersManagement();
+                } else {
+                    showToast(data.error || 'Failed to delete user.', 'error');
+                }
+            } catch (e) {
+                showToast('Request failed.', 'error');
+            } finally {
+                deleteUserConfirmBtn.disabled = false;
+                deleteUserConfirmBtn.innerHTML = originalLabel;
+            }
+        });
+    }
+});
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
 function loadTeamDetails() {
     const team = document.getElementById('team-select').value;
     const container = document.getElementById('team-details');
@@ -2105,7 +2325,7 @@ function handleTicketCheckboxChange(checkbox) {
         const uniqueCount = uniqueCheckedIds.size;
         if (uniqueCount > MAX_VIBER_TICKETS) {
             checkbox.checked = false;
-            showToast('Only up to 5 tickets can be sent via Viber.', 'error');
+            showToast('Only up to 5 tickets can be copied for Viber.', 'error');
         }
         updateExportButton();
     } catch (e) {
@@ -2243,7 +2463,7 @@ function sendSelectedTicketsViaViber() {
             return;
         }
         if (checkboxes.length > MAX_VIBER_TICKETS) {
-            showToast('Only up to 5 tickets can be sent via Viber.', 'error');
+            showToast('Only up to 5 tickets can be copied for Viber.', 'error');
             return;
         }
 

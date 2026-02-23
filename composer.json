@@ -1,0 +1,7 @@
+{
+    "name": "satc/repair-ticket",
+    "description": "SATC Repair Ticketing System",
+    "require": {
+        "phpmailer/phpmailer": "^6.8"
+    }
+}

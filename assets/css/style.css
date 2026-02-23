@@ -30,7 +30,7 @@ body {
     flex-direction: column;
 }
 
-/* Sidebar */
+/* ========== SIDEBAR STRUCTURE ========== */
 .sidebar {
     position: fixed;
     top: 0;
@@ -49,10 +49,27 @@ body {
     transition: width 0.3s ease;
 }
 
+/* Sidebar inner: flex container to push user section to bottom */
+.sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    flex: 1;
+}
+
+/* Navigation takes available space and scrolls if needed */
+.sidebar-nav {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
 .sidebar.collapsed {
     width: 70px;
 }
 
+/* ========== SIDEBAR HEADER (LOGO) ========== */
 .sidebar h4.sidebar-header {
     color: white;
     font-weight: 600;
@@ -71,25 +88,6 @@ body {
     margin-bottom: 0.5rem;
 }
 
-.sidebar h4 span {
-    color: var(--primary-color);
-}
-
-.sidebar-header .sidebar-title,
-.sidebar-header .sidebar-title span {
-    white-space: nowrap;
-    color: #ffd700;
-    -webkit-text-stroke: 0.5px var(--primary-color);
-    paint-order: stroke fill;
-    font-size: 0.9rem;
-    transition: opacity 0.3s ease;
-}
-
-.sidebar.collapsed .sidebar-title {
-    opacity: 0;
-    display: none;
-}
-
 .sidebar-logo {
     height: 60px;
     width: auto;
@@ -105,6 +103,7 @@ body {
     margin-bottom: 0;
 }
 
+/* ========== SIDEBAR TOGGLE BUTTON ========== */
 .sidebar-toggle {
     position: fixed;
     top: 20px;
@@ -136,6 +135,7 @@ body {
     transition: all 0.3s ease;
 }
 
+/* ========== NAVIGATION LINKS ========== */
 .nav-link {
     color: rgba(255, 255, 255, 0.7);
     font-weight: 500;
@@ -189,6 +189,303 @@ body {
 .sidebar.collapsed .nav-text {
     opacity: 0;
     display: none;
+}
+
+/* ========== USER SECTION (BOTTOM OF SIDEBAR) ========== */
+.sidebar-user {
+    flex-shrink: 0;
+    margin-top: auto;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 1rem 0 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    min-height: 0;
+}
+
+.sidebar-user-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0 1rem 1rem;
+}
+
+.sidebar-user-icon {
+    flex-shrink: 0;
+    font-size: 2rem;
+    color: var(--secondary-color);
+    line-height: 1;
+}
+
+.sidebar-user-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.sidebar-user-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1;
+}
+
+.sidebar-user-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.sidebar-user-role {
+    font-size: 0.75rem;
+    color: rgba(255, 193, 7, 0.9);
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+/* ========== LOGOUT BUTTON (MATCHES NAV LINK STYLE) ========== */
+.sidebar-logout-btn {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: rgba(255, 255, 255, 0.7);
+    background: transparent;
+    border: none;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    margin: 0;
+}
+
+.sidebar-logout-btn i {
+    width: 24px;
+    text-align: center;
+    margin-right: 10px;
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+
+.sidebar-logout-btn:hover {
+    color: white;
+    background: rgba(255, 64, 129, 0.12);
+    border-left-color: var(--primary-color);
+}
+
+.sidebar-logout-btn .sidebar-logout-text {
+    transition: opacity 0.3s ease;
+}
+
+/* ========== COLLAPSED SIDEBAR USER SECTION ========== */
+.sidebar.collapsed .sidebar-user {
+    padding: 0.75rem 0 0.5rem;
+}
+
+.sidebar.collapsed .sidebar-user-info {
+    justify-content: center;
+    padding: 0 0.5rem 0.75rem;
+}
+
+.sidebar.collapsed .sidebar-user-icon {
+    font-size: 1.75rem;
+}
+
+.sidebar.collapsed .sidebar-user-text {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-logout-btn {
+    justify-content: center;
+    padding: 0.75rem 0.5rem;
+    border-left-color: transparent;
+}
+
+.sidebar.collapsed .sidebar-logout-btn i {
+    margin-right: 0;
+}
+
+.sidebar.collapsed .sidebar-logout-text {
+    display: none;
+}
+
+/* ========== LOGOUT CONFIRMATION MODAL (compact) ========== */
+#logoutConfirmModal .modal-dialog {
+    max-width: 360px;
+}
+.logout-confirm-modal {
+    border: none;
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+
+.logout-confirm-modal-header {
+    background: var(--primary-color);
+    color: #fff;
+    padding: 0.65rem 1rem;
+    border-bottom: none;
+}
+
+.logout-confirm-modal-header .modal-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.logout-confirm-modal-header .btn-close-white {
+    filter: brightness(0) invert(1);
+    opacity: 1;
+}
+
+.logout-confirm-modal-body {
+    padding: 0.85rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-color);
+}
+
+.logout-confirm-modal-footer {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid #eee;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.logout-confirm-cancel {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    border: 1px solid #dee2e6;
+    background: white;
+    color: #6c757d;
+}
+
+.logout-confirm-cancel:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057 !important;
+}
+
+.logout-confirm-ok {
+    background: var(--primary-color);
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #fff;
+    padding: 0.4rem 1rem;
+}
+
+.logout-confirm-ok:hover {
+    background: var(--primary-hover);
+    color: #fff;
+}
+
+@media (max-width: 576px) {
+    .logout-confirm-modal-header,
+    .logout-confirm-modal-body,
+    .logout-confirm-modal-footer {
+        padding: 0.6rem 0.875rem;
+    }
+    .logout-confirm-modal-footer .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
+
+/* ========== DELETE USER CONFIRMATION MODAL (compact) ========== */
+#deleteUserConfirmModal .modal-dialog {
+    max-width: 360px;
+}
+.delete-user-confirm-modal {
+    border: none;
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+
+.delete-user-confirm-modal-header {
+    background: var(--primary-color);
+    color: #fff;
+    padding: 0.65rem 1rem;
+    border-bottom: none;
+}
+
+.delete-user-confirm-modal-header .modal-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.delete-user-confirm-modal-header .btn-close-white {
+    filter: brightness(0) invert(1);
+    opacity: 1;
+}
+
+.delete-user-confirm-modal-body {
+    padding: 0.85rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-color);
+}
+
+.delete-user-confirm-modal-footer {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid #eee;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.delete-user-confirm-cancel {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    border: 1px solid #dee2e6;
+    background: white;
+    color: #6c757d;
+}
+
+.delete-user-confirm-cancel:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057 !important;
+}
+
+.delete-user-confirm-ok {
+    background: var(--primary-color);
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #fff;
+    padding: 0.4rem 1rem;
+}
+
+.delete-user-confirm-ok:hover {
+    background: var(--primary-hover);
+    color: #fff;
+}
+
+@media (max-width: 576px) {
+    .delete-user-confirm-modal-header,
+    .delete-user-confirm-modal-body,
+    .delete-user-confirm-modal-footer {
+        padding: 0.6rem 0.875rem;
+    }
+    .delete-user-confirm-modal-footer .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
 }
 
 /* Main Content */
@@ -441,8 +738,180 @@ h1.h2 {
     padding: 0.4em 0.85em;
 }
 
+/* ========== MANAGE USERS TABLE – same design as Tickets table ========== */
+.users-table-wrapper {
+    max-height: 70vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e9ecef;
+    border-radius: var(--radius);
+    padding-right: 2px;
+}
+.users-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+.users-table-wrapper::-webkit-scrollbar-track {
+    background: #fff;
+    border-radius: 4px;
+}
+.users-table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+.users-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-hover);
+}
+
+#users-table {
+    width: 100%;
+    font-size: 0.8125rem;
+}
+#users-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+#users-table thead th {
+    background-color: var(--sidebar-bg);
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.75rem;
+    white-space: nowrap;
+    text-align: left;
+    border: 0;
+    box-shadow: 0 1px 0 0 rgba(0,0,0,0.05);
+}
+#users-table thead th:first-child {
+    border-top-left-radius: var(--radius);
+    padding-left: 1rem;
+}
+#users-table thead th:last-child {
+    border-top-right-radius: var(--radius);
+    padding-right: 1rem;
+    box-shadow: 2px 1px 0 0 rgba(0,0,0,0.05);
+}
+#users-table thead tr {
+    background-color: var(--sidebar-bg);
+}
+#users-table thead th:hover {
+    background-color: #373754;
+}
+#users-table th,
+#users-table td {
+    padding: 0.5rem 0.75rem;
+    vertical-align: middle;
+}
+#users-table tbody td {
+    background: #fff;
+}
+#users-table tbody tr:hover td {
+    background-color: #fff5f8;
+}
+/* Manage users action buttons – in theme (pink, soft, with label) */
+#users-table .users-actions-cell {
+    white-space: nowrap;
+}
+#users-table .users-action-btn {
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: #FDF2F7;
+    color: var(--primary-color);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+    margin-left: 0.25rem;
+}
+#users-table .users-action-btn i {
+    margin-right: 0.35rem;
+    font-size: 0.7rem;
+    opacity: 0.9;
+}
+#users-table .users-action-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+#users-table .users-action-btn:first-of-type {
+    margin-left: 0;
+}
+/* Resend: same pink theme */
+#users-table .users-action-resend:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+/* Delete: soft red tint on hover so it’s distinct but on-theme */
+#users-table .users-action-delete {
+    background: #FEF2F2;
+    color: #b91c1c;
+}
+#users-table .users-action-delete:hover {
+    background: #b91c1c;
+    color: #fff;
+    border-color: #b91c1c;
+}
+#users-table .btn {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    white-space: nowrap;
+}
+#users-table .badge {
+    font-size: 0.7rem;
+    padding: 0.35em 0.6em;
+}
+/* Actions column: fixed width, left-aligned (no excess space) */
+#users-table thead th.users-actions-th {
+    text-align: left;
+    width: 9rem;
+    max-width: 9rem;
+    padding-right: 0.75rem;
+}
+#users-table tbody td.users-actions-cell {
+    text-align: left;
+}
+
+@media (max-width: 991.98px) {
+    .users-table-wrapper {
+        max-height: 60vh;
+    }
+}
+@media (max-width: 767.98px) {
+    #users-view .card-body {
+        padding: 1rem !important;
+    }
+    .users-table-wrapper {
+        max-height: 55vh;
+        border-radius: 8px;
+    }
+    #users-table {
+        font-size: 0.75rem;
+    }
+    #users-table thead th {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.5rem;
+    }
+    #users-table th,
+    #users-table td {
+        padding: 0.4rem 0.5rem;
+    }
+    #users-table .users-action-btn span {
+        display: none;
+    }
+    #users-table .users-action-btn i {
+        margin-right: 0;
+    }
+    #users-table .users-action-btn {
+        padding: 0.4rem 0.5rem;
+    }
+}
+
+/* Generic table hover (light pink) for any .table-hover when not overridden */
 .table-hover tbody tr:hover {
-    background-color: #fff5f8; /* Very light pink on hover */
+    background-color: #fff5f8;
 }
 
 /* Global scrollbar styling - Light track so native dropdowns (select) don't flash black */
@@ -621,9 +1090,38 @@ h1.h2 {
 #tickets-table th:nth-child(9) {
     text-align: left;
 }
-#tickets-table td:nth-child(11),
+/* Tickets Actions column: compact, left-aligned, themed Edit button */
 #tickets-table thead th:last-child {
     text-align: left;
+    width: 6rem;
+    max-width: 6rem;
+    padding-right: 0.5rem;
+}
+#tickets-table td:nth-child(11) {
+    text-align: left;
+    padding-right: 0.5rem;
+}
+#tickets-table .tickets-action-btn {
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: #FDF2F7;
+    color: var(--primary-color);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+}
+#tickets-table .tickets-action-btn i {
+    margin-right: 0.35rem;
+    font-size: 0.7rem;
+    opacity: 0.9;
+}
+#tickets-table .tickets-action-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
 }
 #tickets-table .btn { font-size: 0.75rem; padding: 0.35rem 0.6rem; white-space: nowrap; }
 @media (max-width: 991.98px) {
@@ -829,47 +1327,123 @@ table td .section-loader {
     100% { transform: rotate(1turn); }
 }
 
-/* Ticket Modal - Compact Layout */
-#ticketModal .modal-header {
-    padding: 0.75rem 1.25rem;
+/* ========== Shared app modals: compact, solid colors, same radius (10px) ========== */
+.app-modal-content {
+    border: none;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+.app-modal-content .modal-header {
+    padding: 0.6rem 1rem;
     background-color: var(--primary-color);
-    color: white;
+    color: #fff;
     border-bottom: none;
 }
-
-#ticketModal .modal-title {
-    font-size: 1.1rem;
+.app-modal-content .modal-title {
+    font-size: 0.95rem;
     font-weight: 600;
-    color: white;
+    color: #fff;
+}
+.app-modal-content .modal-header .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+    opacity: 0.9;
+}
+.app-modal-content .modal-body {
+    padding: 0.85rem 1rem;
+}
+.app-modal-content .modal-footer {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid #eee;
+}
+.app-modal-content .modal-footer .btn {
+    border-radius: 8px;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+.app-modal-content .modal-footer .btn-primary {
+    background-color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    color: #fff;
+}
+.app-modal-content .modal-footer .btn-primary:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: #fff;
+}
+.app-modal-content .modal-footer .btn-secondary {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    color: #495057;
+}
+.app-modal-content .modal-footer .btn-secondary:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057 !important;
 }
 
+/* Add user / Edit user modals – smaller width */
+#addUserModal .app-modal-dialog,
+#editUserModal .app-modal-dialog {
+    max-width: 400px;
+}
+#addUserModal .modal-body .form-label,
+#editUserModal .modal-body .form-label {
+    font-size: 0.8125rem;
+    margin-bottom: 0.25rem;
+}
+#addUserModal .modal-body .form-control,
+#addUserModal .modal-body .form-select,
+#editUserModal .modal-body .form-control,
+#editUserModal .modal-body .form-select {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 8px;
+}
+#addUserModal .modal-body .mb-3,
+#editUserModal .modal-body .mb-3 {
+    margin-bottom: 0.75rem !important;
+}
+
+/* Ticket Modal – create/edit (compact, solid, same radius) */
+.ticket-modal-dialog {
+    max-width: 720px;
+}
+#ticketModal .modal-header {
+    padding: 0.6rem 1rem;
+    background-color: var(--primary-color);
+    color: #fff;
+    border-bottom: none;
+}
+#ticketModal .modal-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+}
 #ticketModal .modal-header .btn-close {
     filter: invert(1) grayscale(100%) brightness(200%);
     opacity: 0.9;
 }
-
 #ticketModal .modal-body {
-    padding: 1rem 1.25rem;
-    max-height: calc(100vh - 200px);
+    padding: 0.85rem 1rem;
+    max-height: calc(100vh - 180px);
     overflow-y: auto;
 }
-
 #ticketModal .modal-footer {
-    padding: 0.75rem 1.25rem;
+    padding: 0.6rem 1rem;
     border-top: 1px solid #eee;
 }
-/* Same button style for Close and Save: same size, shape, and theme */
 #ticketModal .modal-footer .btn {
-    border-radius: 50px;
-    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
     font-weight: 500;
-    min-width: 7rem;
 }
 #ticketModal .modal-footer .btn-primary {
     background-color: var(--primary-color);
-    border-color: var(--primary-color);
+    border: 1px solid var(--primary-color);
     color: #fff;
-    box-shadow: 0 4px 10px rgba(255, 64, 129, 0.3);
 }
 #ticketModal .modal-footer .btn-primary:hover {
     background-color: var(--primary-hover);
@@ -877,14 +1451,14 @@ table td .section-loader {
     color: #fff;
 }
 #ticketModal .modal-footer .btn-secondary {
-    background-color: transparent;
-    border: 2px solid var(--primary-color);
-    color: var(--primary-color);
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    color: #495057;
 }
 #ticketModal .modal-footer .btn-secondary:hover {
-    background-color: rgba(255, 64, 129, 0.08);
-    border-color: var(--primary-hover);
-    color: var(--primary-hover);
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+    color: #495057 !important;
 }
 
 /* ========== View Ticket Modal (read-only, modern UI, no gradients) ========== */
@@ -1011,7 +1585,7 @@ table td .section-loader {
 #ticketModal .form-select {
     padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 #ticketModal textarea.form-control {
@@ -1734,4 +2308,3 @@ body:has(.sidebar.collapsed) .system-footer {
     opacity: 0.5;
     cursor: not-allowed;
 }
-

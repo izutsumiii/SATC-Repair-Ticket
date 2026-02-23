@@ -1,7 +1,12 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once __DIR__ . '/auth.php';
 $config = require_once 'config.php';
+
+requireLogin();
+$role = $_SESSION['role'] ?? '';
+$isStaff = ($role === 'staff');
 
 $db = new CSVDatabase($config);
 
@@ -58,6 +63,11 @@ try {
     } 
     
     elseif ($method === 'POST') {
+        if ($isStaff) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Forbidden: view-only access']);
+            exit;
+        }
         // Create new ticket
         $input = json_decode(file_get_contents('php://input'), true);
         if (!$input) {
@@ -69,6 +79,11 @@ try {
     } 
     
     elseif ($method === 'PUT') {
+        if ($isStaff) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Forbidden: view-only access']);
+            exit;
+        }
         // Update ticket
         $input = json_decode(file_get_contents('php://input'), true);
         if (!isset($input['ticket_id'])) {

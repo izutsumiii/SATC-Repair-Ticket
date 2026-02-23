@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/api/auth.php';
+requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,7 +14,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js: use versioned build to avoid console source-map 404 from default npm bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div id="toast-container" class="toast-container"></div>
@@ -19,11 +24,11 @@
     <div class="row">
         <!-- Sidebar -->
         <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show" id="sidebar">
-            <div class="pt-1 px-2">
+            <div class="sidebar-inner pt-1 px-2">
                 <h4 class="px-2 pb-2 border-bottom d-flex flex-column align-items-center gap-1 sidebar-header">
                     <img src="s2s.png" alt="Logo" class="sidebar-logo">
                 </h4>
-                <ul class="nav flex-column">
+                <ul class="nav flex-column sidebar-nav">
                     <li class="nav-item">
                         <a class="nav-link active" onclick="showTab('dashboard')">
                             <i class="fas fa-home"></i>
@@ -55,9 +60,73 @@
                             <span class="nav-text">Repair Teams</span>
                         </a>
                     </li>
+                    <?php if (($_SESSION['role'] ?? '') === 'programmer'): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="showTab('users')">
+                            <i class="fas fa-user-cog"></i>
+                            <span class="nav-text">Manage users</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 </ul>
+                <!-- User + Logout: all styles from assets/css/style.css (sidebar-user, sidebar-logout-btn) -->
+                <div class="sidebar-user">
+                    <div class="sidebar-user-info">
+                        <span class="sidebar-user-icon"><i class="fas fa-user-circle" aria-hidden="true"></i></span>
+                        <div class="sidebar-user-text">
+                            <span class="sidebar-user-label">Logged in as</span>
+                            <span class="sidebar-user-name"><?php echo htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username'] ?? 'User'); ?></span>
+                            <span class="sidebar-user-role"><?php
+                            $roleLabels = ['programmer' => 'System Administrator', 'company_owner' => 'Admin', 'staff' => 'Staff', 'maintenance_provider' => 'System Administrator'];
+                            echo htmlspecialchars($roleLabels[$_SESSION['role'] ?? ''] ?? 'User');
+                            ?></span>
+                        </div>
+                    </div>
+                    <button type="button" class="sidebar-logout-btn" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal" aria-label="Log out">
+                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                        <span class="sidebar-logout-text">Logout</span>
+                    </button>
+                </div>
             </div>
         </nav>
+
+        <!-- Logout confirmation modal (site-styled, responsive) -->
+        <div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-labelledby="logoutConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content logout-confirm-modal">
+                    <div class="modal-header logout-confirm-modal-header">
+                        <h5 class="modal-title" id="logoutConfirmModalLabel"><i class="fas fa-sign-out-alt me-2"></i>Log out</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body logout-confirm-modal-body">
+                        <p class="mb-0">Are you sure you want to log out?</p>
+                    </div>
+                    <div class="modal-footer logout-confirm-modal-footer">
+                        <button type="button" class="btn btn-secondary logout-confirm-cancel" data-bs-dismiss="modal">Cancel</button>
+                        <a href="api/auth.php?logout=1" class="btn btn-primary logout-confirm-ok" id="logoutConfirmOk">Log out</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete user confirmation modal (Admin / System Administrator; site-styled) -->
+        <div class="modal fade" id="deleteUserConfirmModal" tabindex="-1" aria-labelledby="deleteUserConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content delete-user-confirm-modal">
+                    <div class="modal-header delete-user-confirm-modal-header">
+                        <h5 class="modal-title" id="deleteUserConfirmModalLabel"><i class="fas fa-user-times me-2"></i>Delete user</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body delete-user-confirm-modal-body">
+                        <p class="mb-0">Delete user <strong id="deleteUserConfirmName"></strong>? They will no longer be able to log in.</p>
+                    </div>
+                    <div class="modal-footer delete-user-confirm-modal-footer">
+                        <button type="button" class="btn btn-secondary delete-user-confirm-cancel" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger delete-user-confirm-ok" id="deleteUserConfirmBtn">Delete user</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Sidebar Toggle Button (overlaps main content) -->
         <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle Sidebar">
@@ -399,9 +468,11 @@
             <div id="tickets-view" class="hidden-section">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">Tickets</h1>
+                    <?php if (($_SESSION['role'] ?? '') !== 'staff'): ?>
                     <button class="btn btn-primary shadow-sm" onclick="openTicketModal()">
                         <i class="fas fa-plus me-2"></i> New Ticket
                     </button>
+                    <?php endif; ?>
                 </div>
 
                 <div class="card shadow-sm border-0">
@@ -448,7 +519,7 @@
                                     <i class="fas fa-times me-1"></i> Clear Selection
                                 </button>
                                 <button class="btn btn-sm btn-success" onclick="sendSelectedTicketsViaViber()" id="viber-export-btn" disabled>
-                                    <i class="fas fa-paper-plane me-1"></i> Send via Viber
+                                    <i class="fas fa-copy me-1"></i> Copy for Viber
                                 </button>
                             </div>
                         </div>
@@ -512,6 +583,114 @@
                 </div>
             </div>
 
+            <?php if (in_array($_SESSION['role'] ?? '', ['programmer', 'company_owner'], true)): ?>
+            <!-- Manage users (Admin and System Administrator) – same layout as Tickets -->
+            <div id="users-view" class="hidden-section">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2 mb-0">Manage users</h1>
+                    <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class="fas fa-user-plus me-2"></i> Add user
+                    </button>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <p class="text-muted small mb-3">Add and edit user accounts. New users receive login details by email.</p>
+                        <div class="users-table-wrapper table-responsive">
+                            <table class="table table-hover align-middle mb-0" id="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Display name</th>
+                                        <th>Role</th>
+                                        <th>Date</th>
+                                        <th class="users-actions-th">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body">
+                                    <tr><td colspan="5" class="text-muted text-center py-4">Loading…</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Add user modal -->
+            <div class="modal fade" id="addUserModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered app-modal-dialog">
+                    <div class="modal-content app-modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add user</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="addUserForm">
+                                <p class="text-muted small mb-3">A random password will be generated and sent to the user's email.</p>
+                                <div class="mb-3">
+                                    <label class="form-label">Email (login)</label>
+                                    <input type="email" class="form-control" name="email" required placeholder="user@example.com">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Display name</label>
+                                    <input type="text" class="form-control" name="display_name" placeholder="Full name or label">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Role</label>
+                                    <select class="form-select" name="role">
+                                        <option value="staff">Staff</option>
+                                        <option value="company_owner">Admin</option>
+                                        <option value="programmer">System Administrator</option>
+                                        <option value="maintenance_provider">System Administrator</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="addUserSubmit">Add user</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Edit user modal -->
+            <div class="modal fade" id="editUserModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered app-modal-dialog">
+                    <div class="modal-content app-modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit user</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editUserForm">
+                                <input type="hidden" name="username" id="editUserUsername">
+                                <div class="mb-3">
+                                    <label class="form-label">Email (login)</label>
+                                    <input type="email" class="form-control" name="email" id="editUserEmail" required placeholder="user@example.com">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Display name / label</label>
+                                    <input type="text" class="form-control" name="display_name" id="editUserDisplayName" placeholder="Full name or label">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Role</label>
+                                    <select class="form-select" name="role" id="editUserRole">
+                                        <option value="staff">Staff</option>
+                                        <option value="company_owner">Company Owner</option>
+                                        <option value="programmer">Programmer</option>
+                                        <option value="maintenance_provider">Maintenance Provider</option>
+                                    </select>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="editUserSubmit">Save changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
         </main>
     </div>
 
@@ -541,8 +720,8 @@
 
 <!-- Ticket Modal -->
 <div class="modal fade" id="ticketModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
+    <div class="modal-dialog modal-lg modal-dialog-centered ticket-modal-dialog">
+        <div class="modal-content app-modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalTitle">Ticket</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -641,7 +820,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <?php if (($_SESSION['role'] ?? '') !== 'staff'): ?>
                 <button type="button" class="btn btn-primary" id="ticketModalBtnSave" onclick="saveTicket()">Save changes</button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -649,8 +830,8 @@
 
 <!-- View Ticket Modal (read-only, modern layout) -->
 <div class="modal fade" id="ticketViewModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content ticket-view-modal-content">
+    <div class="modal-dialog modal-dialog-centered ticket-view-modal-dialog">
+        <div class="modal-content ticket-view-modal-content app-modal-content">
             <div class="modal-header ticket-view-modal-header">
                 <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
                     <h5 class="modal-title mb-0" id="ticketViewModalTitle">View Ticket</h5>
@@ -696,7 +877,7 @@
             </div>
             <div class="modal-footer ticket-view-modal-footer">
                 <button type="button" class="btn btn-success" onclick="sendCurrentTicketViaViber()">
-                    <i class="fas fa-paper-plane me-1"></i> Send via Viber
+                    <i class="fas fa-copy me-1"></i> Copy for Viber
                 </button>
                 <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
             </div>
@@ -705,6 +886,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>window.USER_ROLE = <?php echo json_encode($_SESSION['role'] ?? ''); ?>;</script>
 <script src="assets/js/app.js"></script>
 <script>
 // Fallback so testGasConnection() works in console even if app.js fails to load
