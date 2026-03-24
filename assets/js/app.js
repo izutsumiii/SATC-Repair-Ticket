@@ -49,7 +49,7 @@ function toggleSidebar() {
 const API_MODE = 'gas';
 
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE (must end with /exec):
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzcuLV1n4uBd2wPTOJd8KSo77LtOIjF9RLyJ3DtAKsWzHYPoRoWxw-xaUgSZN2Yq4-23A/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx2YvfziO2M9L-P11IKn0vW-bcAFdmtKdj-wahUB6YHNRecb0nScn87Tv9JPMO0k1qmnw/exec';
 window.GAS_URL = GAS_URL; // so console test and fallback can use it
 
 // GAS TROUBLESHOOTING (Network error / connection failed):
@@ -716,7 +716,7 @@ function updateClusters() {
                 const ticketJson = (JSON.stringify(t) || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 return `<tr class="clusters-ticket-row" data-ticket-json="${ticketJson}">
                     <td class="fw-bold jo-number-pink">#${t.ticket_id}</td>
-                    <td class="text-muted">${escapeHtml(t.customer_name || 'â€”')}</td>
+                    <td class="text-muted">${escapeHtml(t.customer_name || '')}</td>
                     <td><span class="badge bg-${statusColor}" style="font-size: 0.65rem;">${escapeHtml(displayStatus)}</span></td>
                     <td><span class="badge bg-${riskColor}" style="font-size: 0.65rem;">${escapeHtml(t.risk_level || '')}</span></td>
                     <td class="text-end">
@@ -961,7 +961,7 @@ async function loadTickets(preserveFilters = false) {
         if (!preserveFilters) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="11" class="py-5"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="py-5"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
             }
         }
         
@@ -994,7 +994,7 @@ async function loadTickets(preserveFilters = false) {
                 if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
                     errorMsg = 'Too many requests. Please wait a moment and try again.';
                 }
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + escapeHtml(errorMsg) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + escapeHtml(errorMsg) + '</td></tr>';
             }
             return;
         }
@@ -1004,7 +1004,7 @@ async function loadTickets(preserveFilters = false) {
             console.error('API did not return an array:', data);
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
             }
             return;
         }
@@ -1027,7 +1027,7 @@ async function loadTickets(preserveFilters = false) {
         if (allTickets.length === 0) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
             }
             const countEl = document.getElementById('ticket-count');
             if(countEl) countEl.innerText = 'No tickets';
@@ -1057,7 +1057,7 @@ async function loadTickets(preserveFilters = false) {
             if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
                 errorMsg = 'Too many requests. Please wait a moment and try again.';
             }
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + escapeHtml(errorMsg) + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + escapeHtml(errorMsg) + '</td></tr>';
         }
         updateExportButton();
     }
@@ -1086,6 +1086,10 @@ let selectedTicketIds = new Set();
 
 function renderTicketsTable(tickets) {
     const tbody = document.getElementById('tickets-table-body');
+    const secondDispatchHeader = document.getElementById('th-second-dispatch');
+    const secondDispatchCol = document.getElementById('col-second-dispatch');
+    const thirdDispatchHeader = document.getElementById('th-third-dispatch');
+    const thirdDispatchCol = document.getElementById('col-third-dispatch');
     
     if (!tbody) {
         console.error('âŒ Tickets table body element (#tickets-table-body) not found!');
@@ -1097,8 +1101,21 @@ function renderTicketsTable(tickets) {
     // Save current checkbox states before re-rendering
     saveCheckboxStates();
     
+    const showSecondDispatch = Array.isArray(tickets) && tickets.some(t => {
+        const val = t && (t.date_second_dispatch ?? t.second_dispatch);
+        return val != null && String(val).trim() !== '';
+    });
+    const showThirdDispatch = Array.isArray(tickets) && tickets.some(t => {
+        const val = t && (t.date_third_dispatch ?? t.third_dispatch);
+        return val != null && String(val).trim() !== '';
+    });
+    if (secondDispatchHeader) secondDispatchHeader.classList.toggle('d-none', !showSecondDispatch);
+    if (secondDispatchCol) secondDispatchCol.style.display = showSecondDispatch ? '' : 'none';
+    if (thirdDispatchHeader) thirdDispatchHeader.classList.toggle('d-none', !showThirdDispatch);
+    if (thirdDispatchCol) thirdDispatchCol.style.display = showThirdDispatch ? '' : 'none';
+
     if (!tickets || tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted">No tickets found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">No tickets found</td></tr>';
         console.log('â†’ No tickets to display');
         updateExportButton();
         return;
@@ -1111,8 +1128,8 @@ function renderTicketsTable(tickets) {
         const statusColor = getStatusColor(t.status);
         const statusIcon = getStatusIcon(t.status);
         const riskColor = getRiskColor(t.risk_level);
-        const customer = t.customer_name != null ? String(t.customer_name) : 'â€”';
-        const description = t.description != null ? String(t.description) : 'â€”';
+        const customer = t.customer_name != null ? String(t.customer_name) : '';
+        const description = t.description != null ? String(t.description) : '';
         const ticketJson = escapeAttr(JSON.stringify(t));
         const tid = String(t.ticket_id);
         const isChecked = selectedTicketIds.has(tid) && !checkedRendered.has(tid) ? (checkedRendered.add(tid), 'checked') : '';
@@ -1122,9 +1139,9 @@ function renderTicketsTable(tickets) {
             <td class="ps-3">
                 <input type="checkbox" class="ticket-checkbox" value="${escapeAttr(t.ticket_id)}" ${isChecked} onchange="handleTicketCheckboxChange(this)">
             </td>
-            <td class="ticket-number-value-cell"><span class="ticket-number-value-inner">${escapeHtml(t.ticket_id_form) || 'â€”'}</span></td>
+            <td class="ticket-number-value-cell"><span class="ticket-number-value-inner">${escapeHtml(t.ticket_id_form) || ''}</span></td>
             <td class="fw-bold jo-number-pink ticket-id-view-link" role="button" tabindex="0" data-ticket-json="${ticketJson}" title="View ticket details" style="cursor: pointer;">#${escapeHtml(t.ticket_id)}</td>
-            <td class="text-muted small">${escapeHtml(t.account_number) || 'â€”'}</td>
+            <td class="text-muted small">${escapeHtml(t.account_number) || ''}</td>
             <td class="text-muted small">${escapeHtml(t.date_created)}</td>
             <td class="fw-medium ticket-cell-customer" title="${escapeAttr(customer)}">${escapeHtml(customer)}</td>
             <td><span class="ticket-issue" title="${escapeAttr(description)}">${escapeHtml(description)}</span></td>
@@ -1135,6 +1152,9 @@ function renderTicketsTable(tickets) {
             </td>
             <td><span class="badge bg-${riskColor}" title="${escapeAttr(t.risk_level)}">${escapeHtml(t.risk_level)}</span></td>
             <td><span class="small text-muted"><i class="fas fa-users me-1"></i> ${escapeHtml(t.team) || 'Unassigned'}</span></td>
+            <td class="text-muted small">${escapeHtml(t.first_dispatch)}</td>
+            <td class="text-muted small second-dispatch-cell${showSecondDispatch ? '' : ' d-none'}">${escapeHtml(t.date_second_dispatch || t.second_dispatch)}</td>
+            <td class="text-muted small third-dispatch-cell${showThirdDispatch ? '' : ' d-none'}">${escapeHtml(t.date_third_dispatch || t.third_dispatch)}</td>
             ${(function() { var canEdit = (typeof window.USER_ROLE === 'undefined' || window.USER_ROLE !== 'staff'); return canEdit ? '<td class=\"tickets-actions-cell\"><button type=\"button\" class=\"btn btn-sm tickets-action-btn\" onclick=\'editTicket(' + JSON.stringify(t) + ')\' title=\"Edit ticket\"><i class=\"fas fa-edit\"></i> Edit</button></td>' : '<td class=\"tickets-actions-cell\"></td>'; })()}
         </tr>
     `}).join('');
@@ -1213,7 +1233,7 @@ function filterTickets() {
         console.warn('No tickets data available to filter');
         const tbody = document.getElementById('tickets-table-body');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5 text-muted">No tickets available</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">No tickets available</td></tr>';
         }
         updateExportButton();
         return;
@@ -1276,6 +1296,15 @@ function sortTable(column) {
         let valB = b[column];
         if (valA == null || valA === '') valA = '';
         if (valB == null || valB === '') valB = '';
+        if (column === 'date_created' || column === 'first_dispatch' || column === 'date_second_dispatch' || column === 'date_third_dispatch') {
+            const dA = typeof parseDateSafe === 'function' ? parseDateSafe(valA) : null;
+            const dB = typeof parseDateSafe === 'function' ? parseDateSafe(valB) : null;
+            valA = dA ? dA.getTime() : 0;
+            valB = dB ? dB.getTime() : 0;
+            if (valA < valB) return -1 * sortDirection;
+            if (valA > valB) return 1 * sortDirection;
+            return 0;
+        }
         // Handle numbers if needed
         if (!isNaN(valA) && !isNaN(valB) && valA !== '' && valB !== '') {
             valA = Number(valA);
@@ -1349,7 +1378,7 @@ function editTicket(ticket) {
     const form = document.getElementById('ticketForm');
     populateTicketForm(form, ticket);
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : 'â€”';
+    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '';
     const saveBtn = document.getElementById('ticketModalBtnSave');
     if (saveBtn) saveBtn.style.display = '';
     ticketModal.show();
@@ -1373,7 +1402,7 @@ function populateTicketForm(form, ticket) {
         }
     }
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : 'â€”';
+    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '';
 }
 
 // Store current ticket for Viber export
@@ -1382,7 +1411,7 @@ let currentViewTicket = null;
 /** Show ticket details in read-only popup (View Ticket modal, modern UI). */
 function viewTicket(ticket) {
     currentViewTicket = ticket; // Store for Viber export
-    document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || 'â€”');
+    document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || '');
     const teamEl = document.getElementById('ticketViewModalTeamIndicator');
     if (teamEl) {
         const teamName = ticket.team && String(ticket.team).trim() ? String(ticket.team).trim() : '';
@@ -1391,14 +1420,14 @@ function viewTicket(ticket) {
     }
     const set = function (id, value) {
         const el = document.getElementById(id);
-        if (el) el.textContent = value != null && String(value).trim() !== '' ? String(value).trim() : 'â€”';
+        if (el) el.textContent = value != null && String(value).trim() !== '' ? String(value).trim() : '';
     };
     const setDate = function (id, value) {
         const el = document.getElementById(id);
         if (!el) return;
-        if (!value) { el.textContent = 'â€”'; return; }
+        if (!value) { el.textContent = ''; return; }
         const d = new Date(value);
-        const str = isNaN(d.getTime()) ? 'â€”' : value.split('T')[0];
+        const str = isNaN(d.getTime()) ? '' : value.split('T')[0];
         el.textContent = str;
     };
     set('tv-ticket_id_form', ticket.ticket_id_form);
@@ -1413,6 +1442,7 @@ function viewTicket(ticket) {
     set('tv-team', ticket.team);
     set('tv-technician', ticket.technician);
     setDate('tv-date_started', ticket.date_started);
+    setDate('tv-first_dispatch', ticket.first_dispatch);
     setDate('tv-date_completed', ticket.date_completed);
     set('tv-remarks', ticket.remarks);
     ticketViewModal.show();
@@ -1995,7 +2025,7 @@ async function loadUsersManagement() {
         const isAdmin = (window.USER_ROLE || '') === 'company_owner';
         const isSystemAdminUser = (r) => r === 'programmer' || r === 'maintenance_provider';
         const formatCreated = (createdAt) => {
-            if (!createdAt) return '—';
+            if (!createdAt) return '';
             const d = new Date(createdAt);
             return isNaN(d.getTime()) ? createdAt : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
         };
@@ -2011,7 +2041,7 @@ async function loadUsersManagement() {
                     <button type="button" class="btn btn-sm users-action-btn users-action-resend btn-resend-user" data-username="${un}" title="Resend login email"><i class="fas fa-paper-plane"></i><span>Resend</span></button>
                     <button type="button" class="btn btn-sm users-action-btn users-action-delete btn-delete-user" data-username="${un}" data-display-name="${dn}" title="Delete"><i class="fas fa-user-minus"></i><span>Delete</span></button>
                 </td>`
-                : '<td class="users-actions-cell text-muted small">—</td>';
+                : '<td class="users-actions-cell text-muted small"></td>';
             return `<tr>
                 <td>${em}</td>
                 <td>${dn}</td>
@@ -2404,6 +2434,7 @@ Risk Level: ${formatValue(ticket.risk_level)}
 Team: ${formatValue(ticket.team)}
 Technician: ${formatValue(ticket.technician)}
 Date Started: ${formatDate(ticket.date_started)}
+1st Dispatch: ${formatDate(ticket.first_dispatch)}
 Date Completed: ${formatDate(ticket.date_completed)}
 Remarks: ${formatValue(ticket.remarks)}
 `;

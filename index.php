@@ -269,7 +269,7 @@ requireLogin();
                             $startYear = $currentYear - 10;
                             $endYear = $currentYear + 10;
                             for ($y = $endYear; $y >= $startYear; $y--) {
-                                echo '<option value="' . $y . '">' . $y . '</option>';
+                                echo '<option value="' . $y . '"' . ($y === $currentYear ? ' selected' : '') . '>' . $y . '</option>';
                             }
                             ?>
                         </select>
@@ -524,19 +524,39 @@ requireLogin();
                             </div>
                         </div>
                         <div class="tickets-table-wrapper table-responsive">
-                            <table class="table table-hover align-middle mb-0" id="tickets-table">
+                            <table class="table table-hover align-middle mb-0 tickets-responsive" id="tickets-table">
+                                <colgroup>
+                                    <col style="width: 35px;">
+                                    <col style="width: 115px;">
+                                    <col style="width: 110px;">
+                                    <col style="width: 95px;">
+                                    <col style="width: 85px;">
+                                    <col style="width: 110px;">
+                                    <col style="width: 140px;">
+                                    <col style="width: 95px;">
+                                    <col style="width: 80px;">
+                                    <col style="width: 90px;">
+                                    <col style="width: 95px;">
+                                    <col id="col-second-dispatch" style="width: 95px; display: none;">
+                                    <col id="col-third-dispatch" style="width: 95px; display: none;">
+                                    <col style="width: 70px;">
+                                </colgroup>
                                 <thead class="position-sticky top-0" style="z-index: 10;">
                                     <tr>
-                                        <th colspan="2" onclick="sortTable('ticket_id_form')" class="border-0 rounded-start shadow-sm text-start tickets-table-th-ticket-number">Ticket number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('ticket_id')" class="border-0 shadow-sm text-start">JO number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('account_number')" class="border-0 shadow-sm text-start">Account number <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('date_created')" class="border-0 shadow-sm text-start">Date <i class="fas fa-sort small ms-1"></i></th>
-                                        <th class="border-0 shadow-sm text-start">Customer</th>
-                                        <th class="border-0 shadow-sm text-start">Issue</th>
-                                        <th class="border-0 shadow-sm text-start">Status</th>
-                                        <th class="border-0 shadow-sm text-start">Risk</th>
-                                        <th class="border-0 shadow-sm text-start">Team</th>
-                                        <th class="border-0 rounded-end shadow-sm text-start">Actions</th>
+                                        <th class="border-0 rounded-start shadow-sm th-checkbox"></th>
+                                        <th onclick="sortTable('ticket_id_form')" class="border-0 shadow-sm text-start th-ticket-num">Ticket # <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('ticket_id')" class="border-0 shadow-sm text-start th-jo-num">JO # <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('account_number')" class="border-0 shadow-sm text-start th-account">Acct # <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('date_created')" class="border-0 shadow-sm text-start th-date">Date <i class="fas fa-sort small ms-1"></i></th>
+                                        <th class="border-0 shadow-sm text-start th-customer">Customer</th>
+                                        <th class="border-0 shadow-sm text-start th-issue">Issue</th>
+                                        <th class="border-0 shadow-sm text-start th-status">Status</th>
+                                        <th class="border-0 shadow-sm text-start th-risk">Risk</th>
+                                        <th class="border-0 shadow-sm text-start th-team">Team</th>
+                                        <th onclick="sortTable('first_dispatch')" class="border-0 shadow-sm text-start th-first-dispatch">1st Dispatch <i class="fas fa-sort small ms-1"></i></th>
+                                        <th id="th-second-dispatch" onclick="sortTable('date_second_dispatch')" class="border-0 shadow-sm text-start th-second-dispatch d-none">2nd Dispatch <i class="fas fa-sort small ms-1"></i></th>
+                                        <th id="th-third-dispatch" onclick="sortTable('date_third_dispatch')" class="border-0 shadow-sm text-start th-third-dispatch d-none">3rd Dispatch <i class="fas fa-sort small ms-1"></i></th>
+                                        <th class="border-0 rounded-end shadow-sm text-start th-actions">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tickets-table-body" class="border-top-0">
@@ -734,7 +754,7 @@ requireLogin();
                             <input type="date" class="form-control" name="date_created" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Customer / Unit</label>
+                            <label class="form-label">Customer Name/ Unit</label>
                             <input type="text" class="form-control" name="customer_name" required>
                         </div>
                         <div class="col-md-4">
@@ -781,6 +801,7 @@ requireLogin();
                         <div class="col-md-4">
                             <label class="form-label">Team</label>
                             <select class="form-select" name="team" id="modal-team-select">
+                                <option value="">Select Team...</option>
                                 <option value="TEAM 1">TEAM 1</option>
                                 <option value="TEAM 2">TEAM 2</option>
                                 <option value="TEAM 3">TEAM 3</option>
@@ -796,7 +817,11 @@ requireLogin();
                                 <option value="TEAM 13">TEAM 13</option>
                                 <option value="TEAM 14">TEAM 14</option>
                                 <option value="TEAM 15">TEAM 15</option>
-                                <option value="TEAM 16">TEAM 16</option>
+                                <option value="DPR">DPR</option>
+                                <option value="METRO">METRO</option>
+                                <option value="SUBCON">SUBCON</option>
+                                <option value="IKE/MICHAEL">IKE/MICHAEL</option>
+                                <option value="ALLEN/JAYV">ALLEN/JAYV</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -806,6 +831,10 @@ requireLogin();
                         <div class="col-md-3">
                             <label class="form-label">Date Started</label>
                             <input type="date" class="form-control" name="date_started">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">1st Dispatch</label>
+                            <input type="date" class="form-control" name="first_dispatch">
                         </div>
                          <div class="col-md-3">
                             <label class="form-label">Date Completed</label>
@@ -849,7 +878,7 @@ requireLogin();
                     </section>
                     <section class="ticket-view-section">
                         <h6 class="ticket-view-section-title">Customer</h6>
-                        <div class="ticket-view-row"><span class="ticket-view-label">Customer / Unit</span><span class="ticket-view-value" id="tv-customer_name">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">Customer Name/ Unit</span><span class="ticket-view-value" id="tv-customer_name">—</span></div>
                         <div class="ticket-view-row"><span class="ticket-view-label">Account number</span><span class="ticket-view-value" id="tv-account_number">—</span></div>
                         <div class="ticket-view-row"><span class="ticket-view-label">Address</span><span class="ticket-view-value" id="tv-address">—</span></div>
                     </section>
@@ -867,6 +896,7 @@ requireLogin();
                     <section class="ticket-view-section">
                         <h6 class="ticket-view-section-title">Dates</h6>
                         <div class="ticket-view-row"><span class="ticket-view-label">Date started</span><span class="ticket-view-value" id="tv-date_started">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">1st Dispatch</span><span class="ticket-view-value" id="tv-first_dispatch">—</span></div>
                         <div class="ticket-view-row"><span class="ticket-view-label">Date completed</span><span class="ticket-view-value" id="tv-date_completed">—</span></div>
                     </section>
                     <section class="ticket-view-section ticket-view-section-full">
@@ -893,7 +923,7 @@ requireLogin();
 (function () {
     if (typeof window.testGasConnection !== 'function') {
         window.testGasConnection = async function () {
-            var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbzcuLV1n4uBd2wPTOJd8KSo77LtOIjF9RLyJ3DtAKsWzHYPoRoWxw-xaUgSZN2Yq4-23A/exec';
+            var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbwFLJToht0aT0_peJNT9oGCoRtc4ZaUpbSVVUb7_C1Q221J8iZkpko99X6asVOrX0VPwA/exec';
             console.log('Testing GAS URL:', url);
             try {
                 var r = await fetch(url, { method: 'GET' });

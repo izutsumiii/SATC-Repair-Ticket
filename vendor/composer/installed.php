@@ -3,7 +3,7 @@
         'name' => 'satc/repair-ticket',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => 'cdd23be47ff2a3e7b16a84cab4575103a9f9c4e8',
+        'reference' => '97846642d10ce91b2dc26cb1bef729a4ecd542d4',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -22,7 +22,7 @@
         'satc/repair-ticket' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => 'cdd23be47ff2a3e7b16a84cab4575103a9f9c4e8',
+            'reference' => '97846642d10ce91b2dc26cb1bef729a4ecd542d4',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

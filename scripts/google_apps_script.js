@@ -1,10 +1,13 @@
 // SCRIPT CONFIGURATION
-// REPAIR sheet: issue from column H (index 7) and column K (index 10); status is column L (index 11).
+// REPAIR sheet: issue from column H (index 7) and column K (index 10).
+// Status: only from the column whose header is STATUS (or maps to status in COLUMN_MAP). Never use a fixed column index — column L is often CLUSTER in real sheets.
 const CONFIG = {
   SHEET_NAME: "REPAIR",
   ISSUE_COLUMN_INDEX: 7,    // Column H – issue
   ISSUE_COLUMN_INDEX_K: 10, // Column K – issue (second column)
-  STATUS_COLUMN_INDEX: 11,  // Column L (0-based: A=0, B=1 … L=11)
+  STATUS_COLUMN_INDEX: 11,  // Legacy reference only (not used for read; was wrongly filling Status with CLUSTER)
+  // Column O (1-based 15 → 0-based 14): fallback when header missing/unmapped; DATE 1ST DISPATCH maps to first_dispatch
+  FIRST_DISPATCH_COLUMN_INDEX: 14,
   // Map Sheet Headers to JSON Property Names (Form_Responses + REPAIR columns A–X)
   COLUMN_MAP: {
     "Timestamp": "ticket_id_form",
@@ -20,10 +23,18 @@ const CONFIG = {
     "ACCOUNT NAME": "customer_name",
     "ISSUE": "description",
     "STATUS": "status",
+    "REPAIR STATUS": "status",
+    "TICKET STATUS": "status",
+    "CURRENT STATUS": "status",
+    "JOB STATUS": "status",
     "CLUSTER": "risk_level_source",
     "CITY/MUNICIPALITY": "city",
     "REPAIR TEAM": "team",
-    "DATE 1ST DISPATCH": "date_started",
+    "DATE 1ST DISPATCH": "first_dispatch",
+    "DATE 1st DISPATCH": "first_dispatch",
+    "1ST DISPATCH": "first_dispatch",
+    "1st Dispatch": "first_dispatch",
+    "FIRST DISPATCH": "first_dispatch",
     "DATE 2ND DISPATCH": "date_second_dispatch",
     "DATE 3RD DISPATCH": "date_third_dispatch",
     "REASON OUTAGE": "reason_outage",
@@ -149,7 +160,7 @@ function readData() {
   });
 
   headers.forEach(function(h, i) {
-    const key = String(h).trim();
+    const key = String(h).replace(/\u00a0/g, ' ').trim();
     const normalized = key.toUpperCase();
     if (map[key]) {
       reverseMap[i] = map[key];
@@ -160,18 +171,48 @@ function readData() {
       reverseMap[i] = 'city';
     }
   });
+
+  // Column O: use first_dispatch when header is missing or unmapped (does not override an existing mapping)
+  var oIdx = CONFIG.FIRST_DISPATCH_COLUMN_INDEX;
+  if (reverseMap[oIdx] === undefined && headers.length > oIdx) {
+    reverseMap[oIdx] = 'first_dispatch';
+  }
+
+  // First column whose header maps to status (avoid reading CLUSTER from legacy column L).
+  var statusColIndex = -1;
+  for (var sci = 0; sci < headers.length; sci++) {
+    var hClean = String(headers[sci] == null ? '' : headers[sci]).replace(/\u00a0/g, ' ').trim();
+    var hUp = hClean.toUpperCase();
+    var prop = map[hClean] || normalizedMap[hUp];
+    if (prop === 'status') {
+      statusColIndex = sci;
+      break;
+    }
+  }
+  if (statusColIndex < 0) {
+    for (var sci2 = 0; sci2 < headers.length; sci2++) {
+      var hUp2 = String(headers[sci2] == null ? '' : headers[sci2]).replace(/\u00a0/g, ' ').trim().toUpperCase();
+      if (/\bSTATUS\b/.test(hUp2) && hUp2.indexOf('CLUSTER') === -1) {
+        statusColIndex = sci2;
+        break;
+      }
+    }
+  }
   
   rows.forEach(row => {
     let obj = {};
     row.forEach((cell, i) => {
+      if (!reverseMap[i] || reverseMap[i] === 'status') {
+        return;
+      }
       if (reverseMap[i]) {
         let val = cell;
         if (cell instanceof Date) {
             val = Utilities.formatDate(cell, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        } else if (typeof cell === 'number' && (reverseMap[i] === 'date_created' || reverseMap[i] === 'date_started' || reverseMap[i] === 'date_completed')) {
+        } else if (typeof cell === 'number' && (reverseMap[i] === 'date_created' || reverseMap[i] === 'date_started' || reverseMap[i] === 'date_completed' || reverseMap[i] === 'first_dispatch')) {
             var d = new Date((cell - 25569) * 86400 * 1000);
             val = Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
-        } else if (reverseMap[i] === 'date_created' || reverseMap[i] === 'date_started' || reverseMap[i] === 'date_completed') {
+        } else if (reverseMap[i] === 'date_created' || reverseMap[i] === 'date_started' || reverseMap[i] === 'date_completed' || reverseMap[i] === 'first_dispatch') {
             const str = String(cell).trim();
             const mmddyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
             if (mmddyyyy) {
@@ -239,12 +280,17 @@ function readData() {
       }
     }
     
-    // --- STATUS: read from column L (index 11) ---
-    if (row[CONFIG.STATUS_COLUMN_INDEX] !== undefined && String(row[CONFIG.STATUS_COLUMN_INDEX]).trim() !== '') {
-      obj.status = String(row[CONFIG.STATUS_COLUMN_INDEX]).trim();
-    } else {
-      obj.status = 'Pending';
+    // --- STATUS: only from statusColIndex (real STATUS column). No fallback to column L — that was CLUSTER (NORTH, BUKIDNON, etc.). ---
+    var statusVal = '';
+    if (statusColIndex >= 0 && row[statusColIndex] !== undefined && row[statusColIndex] !== null) {
+      var rawSt = row[statusColIndex];
+      if (rawSt instanceof Date) {
+        statusVal = Utilities.formatDate(rawSt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        statusVal = String(rawSt).trim();
+      }
     }
+    obj.status = statusVal || 'Pending';
 
     if (obj.ticket_id) result.push(obj);
   });
@@ -268,23 +314,33 @@ function createData(data) {
 
   const row = [];
   const map = CONFIG.COLUMN_MAP;
+  const normalizedMap = {};
+  Object.keys(map).forEach(function(k) {
+    normalizedMap[String(k).trim().toUpperCase()] = map[k];
+  });
 
   headers.forEach((h, i) => {
     if (i === CONFIG.ISSUE_COLUMN_INDEX) {
         row.push(data.description || "");
         return;
     }
-    if (i === CONFIG.STATUS_COLUMN_INDEX) {
-        row.push(data.status || "");
-        return;
-    }
-    const key = map[h];
+    const trimmed = String(h).trim();
+    const key = map[trimmed] || normalizedMap[trimmed.toUpperCase()];
     if (key && data[key] !== undefined) {
         row.push(data[key]);
     } else {
         row.push("");
     }
   });
+
+  if (data.first_dispatch !== undefined && row.length > CONFIG.FIRST_DISPATCH_COLUMN_INDEX) {
+    var oi = CONFIG.FIRST_DISPATCH_COLUMN_INDEX;
+    var hO = String(headers[oi] || '').replace(/\u00a0/g, ' ').trim();
+    var propO = map[hO] || normalizedMap[hO.toUpperCase()];
+    if (propO === 'first_dispatch' || (hO === '' && !propO)) {
+      row[oi] = data.first_dispatch;
+    }
+  }
 
   sheet.appendRow(row);
   return { success: true, ticket_id: data.ticket_id };
@@ -314,8 +370,6 @@ function updateData(data) {
       headers.forEach((h, colIndex) => {
         if (colIndex === CONFIG.ISSUE_COLUMN_INDEX && data.description !== undefined) {
            sheet.getRange(i + 1, colIndex + 1).setValue(data.description);
-        } else if (colIndex === CONFIG.STATUS_COLUMN_INDEX && data.status !== undefined) {
-           sheet.getRange(i + 1, colIndex + 1).setValue(data.status);
         } else {
           const key = map[String(h).trim()] || normalizedMap[String(h).trim().toUpperCase()];
           if (key && data[key] !== undefined) {
@@ -323,6 +377,14 @@ function updateData(data) {
           }
         }
       });
+      if (data.first_dispatch !== undefined && headers.length > CONFIG.FIRST_DISPATCH_COLUMN_INDEX) {
+        var oi2 = CONFIG.FIRST_DISPATCH_COLUMN_INDEX;
+        var hO2 = String(headers[oi2] || '').replace(/\u00a0/g, ' ').trim();
+        var propO2 = map[hO2] || normalizedMap[hO2.toUpperCase()];
+        if (propO2 === 'first_dispatch' || (hO2 === '' && !propO2)) {
+          sheet.getRange(i + 1, oi2 + 1).setValue(data.first_dispatch);
+        }
+      }
       return { success: true };
     }
   }

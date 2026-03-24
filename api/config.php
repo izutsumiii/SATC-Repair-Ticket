@@ -19,6 +19,9 @@ return [
         'Repair Group / Team' => 'team',
         'Assigned Technician' => 'technician',
         'Date Started' => 'date_started',
+        'DATE 1ST DISPATCH' => 'first_dispatch',
+        'Date 1st Dispatch' => 'first_dispatch',
+        '1st Dispatch' => 'first_dispatch',
         'Date Completed' => 'date_completed',
         'Remarks' => 'remarks'
     ]
