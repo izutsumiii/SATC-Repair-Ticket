@@ -14,6 +14,8 @@ return [
         'Date Created' => 'date_created',
         'Customer / Unit Name' => 'customer_name',
         'Repair Description' => 'description',
+        'Issue' => 'issue',
+        'Contact Number' => 'contact_num',
         'Repair Status' => 'status',
         'Risk Level' => 'risk_level',
         'Repair Group / Team' => 'team',

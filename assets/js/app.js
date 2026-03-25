@@ -49,7 +49,7 @@ function toggleSidebar() {
 const API_MODE = 'gas';
 
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE (must end with /exec):
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbx2YvfziO2M9L-P11IKn0vW-bcAFdmtKdj-wahUB6YHNRecb0nScn87Tv9JPMO0k1qmnw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZfA1WhgUvRtVxjerGwcRqTWZrTUvyzvIlmH9GQl3RmoArGAzeeimHyv_VntVY6MeHsQ/exec';
 window.GAS_URL = GAS_URL; // so console test and fallback can use it
 
 // GAS TROUBLESHOOTING (Network error / connection failed):
@@ -87,6 +87,20 @@ function calculateRisk(description) {
     
     // Default Fallback when description doesn't match any keyword
     return 'Unknown Risk'; 
+}
+
+/** Combined text for risk rules (aligns with GAS: DESCRIPTION + ISSUE). */
+function ticketRiskText(t) {
+    const d = t && t.description != null ? String(t.description).trim() : '';
+    const i = t && t.issue != null ? String(t.issue).trim() : '';
+    return [d, i].filter(Boolean).join(' ');
+}
+
+/** Issue column: ISSUE field only (no description fallback in the table). */
+function ticketIssueDisplay(t) {
+    if (!t || t.issue == null) return '';
+    const s = String(t.issue).trim();
+    return s;
 }
 // ---------------------
 
@@ -860,7 +874,7 @@ function calculateStats(tickets) {
 
     tickets.forEach(t => {
         const normalized = normalizeStatus(t.status);
-        const riskLevel = calculateRisk(t.description);
+        const riskLevel = t.risk_level || calculateRisk(ticketRiskText(t));
         const risk = String(riskLevel).toLowerCase();
 
         // Status Logic - use normalized status (dispatched vs for dispatch are separate)
@@ -961,7 +975,7 @@ async function loadTickets(preserveFilters = false) {
         if (!preserveFilters) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="14" class="py-5"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="py-5 text-center"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
             }
         }
         
@@ -1010,6 +1024,57 @@ async function loadTickets(preserveFilters = false) {
         }
 
         allTickets = data;
+        
+        // #region agent log - location fields presence from GAS
+        try {
+            const tickets = Array.isArray(allTickets) ? allTickets : [];
+            const isNonEmpty = (v) => v != null && String(v).trim() !== '';
+            const clusterNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.cluster) ? 1 : 0), 0);
+            const municipalityNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.municipality) ? 1 : 0), 0);
+            const longlatNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.longlat) ? 1 : 0), 0);
+            const latitudeNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.latitude) ? 1 : 0), 0);
+            const longitudeNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.longitude) ? 1 : 0), 0);
+            const sample = tickets.find(t =>
+                isNonEmpty(t && t.cluster) ||
+                isNonEmpty(t && t.municipality) ||
+                isNonEmpty(t && t.longlat) ||
+                isNonEmpty(t && t.latitude) ||
+                isNonEmpty(t && t.longitude)
+            ) || null;
+
+            fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Debug-Session-Id': '7b9856'
+                },
+                body: JSON.stringify({
+                    sessionId: '7b9856',
+                    location: 'assets/js/app.js:loadTickets/allTickets',
+                    message: 'Loaded tickets; check location-field presence',
+                    hypothesisId: 'H1_gas_or_frontend',
+                    data: {
+                        totalTickets: tickets.length,
+                        clusterNonEmpty,
+                        municipalityNonEmpty,
+                        longlatNonEmpty,
+                        latitudeNonEmpty,
+                        longitudeNonEmpty,
+                        sampleTicket: sample ? {
+                            ticket_id: sample.ticket_id,
+                            ticket_id_form: sample.ticket_id_form,
+                            cluster: sample.cluster,
+                            municipality: sample.municipality,
+                            longlat: sample.longlat,
+                            latitude: sample.latitude,
+                            longitude: sample.longitude
+                        } : null
+                    },
+                    timestamp: Date.now()
+                })
+            }).catch(() => {});
+        } catch (e) {}
+        // #endregion
         
         // Sort by date_created descending (newest first)
         allTickets.sort((a, b) => {
@@ -1081,6 +1146,22 @@ function escapeHtml(s) {
         .replace(/"/g, '&quot;');
 }
 
+/** Return the visible "Ticket #" value (S2SREPAIR-xxxxx).
+ *  Some older GAS deployments returned it under `submission_timestamp`, so we normalize here. */
+function getTicketIdFormValue(ticket) {
+    if (!ticket) return '';
+    const prefix = 'S2SREPAIR-';
+    const direct = ticket.ticket_id_form != null ? String(ticket.ticket_id_form).trim() : '';
+    if (direct && direct.startsWith(prefix)) return direct;
+
+    // Back-compat: if older backend uses submission_timestamp to store the ticket id.
+    const alt = ticket.submission_timestamp != null ? String(ticket.submission_timestamp).trim() : '';
+    if (alt && alt.startsWith(prefix)) return alt;
+
+    // Last resort: return whatever `ticket_id_form` had (could be empty or non-standard).
+    return direct || '';
+}
+
 // Store selected ticket IDs to preserve checkbox state
 let selectedTicketIds = new Set();
 
@@ -1129,7 +1210,8 @@ function renderTicketsTable(tickets) {
         const statusIcon = getStatusIcon(t.status);
         const riskColor = getRiskColor(t.risk_level);
         const customer = t.customer_name != null ? String(t.customer_name) : '';
-        const description = t.description != null ? String(t.description) : '';
+        const issueOnly = ticketIssueDisplay(t);
+        const contactCell = t.contact_num != null ? String(t.contact_num) : '';
         const ticketJson = escapeAttr(JSON.stringify(t));
         const tid = String(t.ticket_id);
         const isChecked = selectedTicketIds.has(tid) && !checkedRendered.has(tid) ? (checkedRendered.add(tid), 'checked') : '';
@@ -1139,12 +1221,12 @@ function renderTicketsTable(tickets) {
             <td class="ps-3">
                 <input type="checkbox" class="ticket-checkbox" value="${escapeAttr(t.ticket_id)}" ${isChecked} onchange="handleTicketCheckboxChange(this)">
             </td>
-            <td class="ticket-number-value-cell"><span class="ticket-number-value-inner">${escapeHtml(t.ticket_id_form) || ''}</span></td>
+            <td class="ticket-number-value-cell"><span class="ticket-number-value-inner">${escapeHtml(getTicketIdFormValue(t)) || ''}</span></td>
             <td class="fw-bold jo-number-pink ticket-id-view-link" role="button" tabindex="0" data-ticket-json="${ticketJson}" title="View ticket details" style="cursor: pointer;">#${escapeHtml(t.ticket_id)}</td>
-            <td class="text-muted small">${escapeHtml(t.account_number) || ''}</td>
+            <td class="text-muted small">${escapeHtml(contactCell) || ''}</td>
             <td class="text-muted small">${escapeHtml(t.date_created)}</td>
             <td class="fw-medium ticket-cell-customer" title="${escapeAttr(customer)}">${escapeHtml(customer)}</td>
-            <td><span class="ticket-issue" title="${escapeAttr(description)}">${escapeHtml(description)}</span></td>
+            <td><span class="ticket-issue" title="${escapeAttr(issueOnly)}">${escapeHtml(issueOnly) || '—'}</span></td>
             <td>
                 <span class="badge bg-${statusColor} text-uppercase" style="letter-spacing: 0.5px; padding: 6px 10px;" title="${escapeAttr(displayStatus)}">
                     <i class="${statusIcon} me-1"></i> ${escapeHtml(displayStatus)}
@@ -1251,7 +1333,9 @@ function filterTickets() {
             t.ticket_id_form,
             t.ticket_id,
             t.customer_name,
+            t.issue,
             t.description,
+            t.contact_num,
             t.account_number,
             t.team,
             t.status,
@@ -1346,7 +1430,7 @@ function getNextTicketNumber() {
     const prefix = 'S2SREPAIR-';
     let maxNum = 0;
     (allTickets || []).forEach(t => {
-        const v = t.ticket_id_form != null ? String(t.ticket_id_form).trim() : '';
+        const v = getTicketIdFormValue(t);
         if (v.startsWith(prefix)) {
             const num = parseInt(v.slice(prefix.length), 10);
             if (!isNaN(num) && num > maxNum) maxNum = num;
@@ -1378,7 +1462,7 @@ function editTicket(ticket) {
     const form = document.getElementById('ticketForm');
     populateTicketForm(form, ticket);
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '';
+    if (displayEl) displayEl.textContent = getTicketIdFormValue(ticket);
     const saveBtn = document.getElementById('ticketModalBtnSave');
     if (saveBtn) saveBtn.style.display = '';
     ticketModal.show();
@@ -1402,7 +1486,7 @@ function populateTicketForm(form, ticket) {
         }
     }
     const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = ticket.ticket_id_form != null ? ticket.ticket_id_form : '';
+    if (displayEl) displayEl.textContent = getTicketIdFormValue(ticket);
 }
 
 // Store current ticket for Viber export
@@ -1410,7 +1494,37 @@ let currentViewTicket = null;
 
 /** Show ticket details in read-only popup (View Ticket modal, modern UI). */
 function viewTicket(ticket) {
-    currentViewTicket = ticket; // Store for Viber export
+    const normalizedTicket = ticket ? Object.assign({}, ticket, { ticket_id_form: getTicketIdFormValue(ticket) }) : ticket;
+    currentViewTicket = normalizedTicket; // Store for Viber export
+    
+    // #region agent log - popup receives fields from GAS JSON
+    try {
+        fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Debug-Session-Id': '7b9856'
+            },
+            body: JSON.stringify({
+                sessionId: '7b9856',
+                location: 'assets/js/app.js:viewTicket',
+                message: 'viewTicket() input ticket fields',
+                hypothesisId: 'H2_popup_binding',
+                data: {
+                    ticket_id: normalizedTicket && normalizedTicket.ticket_id,
+                    ticket_id_form: normalizedTicket && normalizedTicket.ticket_id_form,
+                    cluster: normalizedTicket && normalizedTicket.cluster,
+                    municipality: normalizedTicket && normalizedTicket.municipality,
+                    longlat: normalizedTicket && normalizedTicket.longlat,
+                    latitude: normalizedTicket && normalizedTicket.latitude,
+                    longitude: normalizedTicket && normalizedTicket.longitude
+                },
+                timestamp: Date.now()
+            })
+        }).catch(() => {});
+    } catch (e) {}
+    // #endregion
+    
     document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || '');
     const teamEl = document.getElementById('ticketViewModalTeamIndicator');
     if (teamEl) {
@@ -1430,22 +1544,45 @@ function viewTicket(ticket) {
         const str = isNaN(d.getTime()) ? '' : value.split('T')[0];
         el.textContent = str;
     };
-    set('tv-ticket_id_form', ticket.ticket_id_form);
-    set('tv-ticket_id', ticket.ticket_id);
-    setDate('tv-date_created', ticket.date_created);
-    set('tv-customer_name', ticket.customer_name);
-    set('tv-account_number', ticket.account_number);
-    set('tv-address', ticket.address);
-    set('tv-description', ticket.description);
-    set('tv-status', ticket.status ? normalizeStatus(ticket.status) : '');
-    set('tv-risk_level', ticket.risk_level);
-    set('tv-team', ticket.team);
-    set('tv-technician', ticket.technician);
-    setDate('tv-date_started', ticket.date_started);
-    setDate('tv-first_dispatch', ticket.first_dispatch);
-    setDate('tv-date_completed', ticket.date_completed);
-    set('tv-remarks', ticket.remarks);
+    set('tv-ticket_id_form', normalizedTicket && normalizedTicket.ticket_id_form);
+    set('tv-ticket_id', normalizedTicket && normalizedTicket.ticket_id);
+    setDate('tv-date_created', normalizedTicket && normalizedTicket.date_created);
+    set('tv-customer_name', normalizedTicket && normalizedTicket.customer_name);
+    set('tv-account_number', normalizedTicket && normalizedTicket.account_number);
+    set('tv-contact_num', normalizedTicket && normalizedTicket.contact_num);
+    set('tv-address', normalizedTicket && normalizedTicket.address);
+    set('tv-cluster', normalizedTicket && normalizedTicket.cluster);
+    set('tv-municipality', normalizedTicket && normalizedTicket.municipality);
+    set('tv-longlat', normalizedTicket && normalizedTicket.longlat);
+    set('tv-issue', normalizedTicket && normalizedTicket.issue);
+    set('tv-description', normalizedTicket && normalizedTicket.description);
+    set('tv-status', normalizedTicket && normalizedTicket.status ? normalizeStatus(normalizedTicket.status) : '');
+    set('tv-risk_level', normalizedTicket && normalizedTicket.risk_level);
+    set('tv-team', normalizedTicket && normalizedTicket.team);
+    set('tv-technician', normalizedTicket && normalizedTicket.technician);
+    setDate('tv-date_started', normalizedTicket && normalizedTicket.date_started);
+    setDate('tv-first_dispatch', normalizedTicket && normalizedTicket.first_dispatch);
+    setDate('tv-date_completed', normalizedTicket && normalizedTicket.date_completed);
+    set('tv-remarks', normalizedTicket && normalizedTicket.remarks);
     ticketViewModal.show();
+}
+
+/** PDF receipt (implemented in receipt-pdf.js; requires jsPDF on the page). */
+function downloadTicketReceiptPdf() {
+    if (typeof window.generateTicketReceiptPdf !== 'function') {
+        showToast('Receipt PDF is not available. Refresh the page.', 'error');
+        return;
+    }
+    if (!currentViewTicket) {
+        showToast('No ticket data available.', 'error');
+        return;
+    }
+    try {
+        window.generateTicketReceiptPdf(currentViewTicket);
+    } catch (e) {
+        console.error(e);
+        showToast('Could not generate PDF.', 'error');
+    }
 }
 
 /** Set all ticket form controls enabled or disabled (false = read-only). */
@@ -1487,6 +1624,9 @@ async function saveTicket() {
         return;
     }
 
+    const issueHidden = document.getElementById('ticket-form-issue');
+    if (issueHidden) issueHidden.value = description;
+
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.isNewTicket = document.getElementById('modalTitle').innerText === 'New Ticket';
@@ -1510,7 +1650,11 @@ async function saveTicket() {
             }
 
             if (result.success || result.ticket_id) {
-                showToast('Ticket saved successfully.', 'success');
+                if (result.ticket_id_form) {
+                    showToast('Ticket saved: ' + result.ticket_id_form, 'success');
+                } else {
+                    showToast('Ticket saved successfully.', 'success');
+                }
                 refreshTicketForm();
                 ticketModal.hide();
                 loadTickets();
@@ -1950,8 +2094,9 @@ function updateAnalytics(isRefresh = false) {
     
     const issues = {};
     filtered.forEach(t => {
-        const desc = t.description ? t.description.toLowerCase().trim() : 'unknown';
-        issues[desc] = (issues[desc] || 0) + 1;
+        const label = (t.issue && String(t.issue).trim()) ? String(t.issue).toLowerCase().trim()
+            : (t.description ? String(t.description).toLowerCase().trim() : 'unknown');
+        issues[label] = (issues[label] || 0) + 1;
     });
 
     const sortedIssues = Object.entries(issues).sort((a,b) => b[1] - a[1]).slice(0, 5);
@@ -2259,7 +2404,7 @@ function loadTeamDetails() {
                                 <thead class="position-sticky top-0" style="z-index: 10;">
                                     <tr>
                                         <th class="ps-4 border-0 rounded-start">ID</th>
-                                        <th class="border-0">Description</th>
+                                        <th class="border-0">Issue</th>
                                         <th onclick="sortActiveWorkloadTable('status')" class="border-0">Status <i class="fas fa-sort small ms-1"></i></th>
                                         <th onclick="sortActiveWorkloadTable('risk_level')" class="border-0 rounded-end">Risk <i class="fas fa-sort small ms-1"></i></th>
                                     </tr>
@@ -2270,7 +2415,7 @@ function loadTeamDetails() {
                                         return `
                                         <tr>
                                             <td class="ps-4 fw-bold jo-number-pink ticket-id-view-link" role="button" tabindex="0" data-ticket-json="${q}" title="View ticket details">#${t.ticket_id}</td>
-                                            <td><div class="text-truncate" style="max-width: 300px;" title="${(t.description || '').replace(/"/g, '&quot;')}">${(t.description || '').replace(/</g, '&lt;')}</div></td>
+                                            <td><div class="text-truncate" style="max-width: 300px;" title="${(ticketIssueDisplay(t) || '').replace(/"/g, '&quot;')}">${(ticketIssueDisplay(t) || '—').replace(/</g, '&lt;')}</div></td>
                                             <td><span class="badge bg-${getStatusColor(t.status)}" title="${(normalizeStatus(t.status) || '').replace(/"/g, '&quot;')}">${normalizeStatus(t.status)}</span></td>
                                             <td><span class="badge bg-${getRiskColor(t.risk_level)}" title="${(t.risk_level || '').replace(/"/g, '&quot;')}">${t.risk_level}</span></td>
                                         </tr>
@@ -2322,7 +2467,7 @@ function updateActiveWorkloadTableBody() {
     tbody.innerHTML = list.length > 0 ? list.map(t => `
         <tr>
             <td class="ps-4 fw-bold jo-number-pink ticket-id-view-link" role="button" tabindex="0" data-ticket-json="${ticketJson(t)}" title="View ticket details">#${t.ticket_id}</td>
-            <td><div class="text-truncate" style="max-width: 300px;" title="${(t.description || '').replace(/"/g, '&quot;')}">${(t.description || '').replace(/</g, '&lt;')}</div></td>
+            <td><div class="text-truncate" style="max-width: 300px;" title="${(ticketIssueDisplay(t) || '').replace(/"/g, '&quot;')}">${(ticketIssueDisplay(t) || '—').replace(/</g, '&lt;')}</div></td>
             <td><span class="badge bg-${getStatusColor(t.status)}" title="${(normalizeStatus(t.status) || '').replace(/"/g, '&quot;')}">${normalizeStatus(t.status)}</span></td>
             <td><span class="badge bg-${getRiskColor(t.risk_level)}" title="${(t.risk_level || '').replace(/"/g, '&quot;')}">${t.risk_level}</span></td>
         </tr>
@@ -2427,8 +2572,10 @@ JO Number: ${formatValue(ticket.ticket_id)}
 Date Created: ${formatDate(ticket.date_created)}
 Customer: ${formatValue(ticket.customer_name)}
 Account: ${formatValue(ticket.account_number)}
+Contact: ${formatValue(ticket.contact_num)}
 Address: ${formatValue(ticket.address)}
-Issue: ${formatValue(ticket.description)}
+Issue: ${formatValue(ticket.issue)}
+Description: ${formatValue(ticket.description)}
 Status: ${formatValue(ticket.status ? normalizeStatus(ticket.status) : ticket.status)}
 Risk Level: ${formatValue(ticket.risk_level)}
 Team: ${formatValue(ticket.team)}

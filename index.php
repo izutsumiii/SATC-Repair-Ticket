@@ -481,7 +481,7 @@ requireLogin();
                             <div class="col-md-4">
                                 <div class="input-group">
                                     <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-                                    <input type="text" class="form-control border-start-0 ps-0" id="search-input" placeholder="Search by ID, Customer, or Issue..." onkeyup="filterTickets()">
+                                    <input type="text" class="form-control border-start-0 ps-0" id="search-input" placeholder="Search by ID, Customer, Issue, Contact..." onkeyup="filterTickets()">
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -546,7 +546,7 @@ requireLogin();
                                         <th class="border-0 rounded-start shadow-sm th-checkbox"></th>
                                         <th onclick="sortTable('ticket_id_form')" class="border-0 shadow-sm text-start th-ticket-num">Ticket # <i class="fas fa-sort small ms-1"></i></th>
                                         <th onclick="sortTable('ticket_id')" class="border-0 shadow-sm text-start th-jo-num">JO # <i class="fas fa-sort small ms-1"></i></th>
-                                        <th onclick="sortTable('account_number')" class="border-0 shadow-sm text-start th-account">Acct # <i class="fas fa-sort small ms-1"></i></th>
+                                        <th onclick="sortTable('contact_num')" class="border-0 shadow-sm text-start th-account th-contact">Contact <i class="fas fa-sort small ms-1"></i></th>
                                         <th onclick="sortTable('date_created')" class="border-0 shadow-sm text-start th-date">Date <i class="fas fa-sort small ms-1"></i></th>
                                         <th class="border-0 shadow-sm text-start th-customer">Customer</th>
                                         <th class="border-0 shadow-sm text-start th-issue">Issue</th>
@@ -770,10 +770,15 @@ requireLogin();
                             <label class="form-label">Account number</label>
                             <input type="text" class="form-control" name="account_number" placeholder="e.g. 638774869753" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\D/g,'')">
                         </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Contact number</label>
+                            <input type="text" class="form-control" name="contact_num" placeholder="e.g. 09123456789">
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Address</label>
                             <input type="text" class="form-control" name="address" placeholder="e.g. Street, Barangay, City">
                         </div>
+                        <input type="hidden" name="issue" id="ticket-form-issue" value="">
                         <div class="col-12">
                             <label class="form-label">Issue</label>
                             <textarea class="form-control" name="description" rows="1" required placeholder="e.g. LOS, FIBER CUT, defective modem"></textarea>
@@ -880,10 +885,18 @@ requireLogin();
                         <h6 class="ticket-view-section-title">Customer</h6>
                         <div class="ticket-view-row"><span class="ticket-view-label">Customer Name/ Unit</span><span class="ticket-view-value" id="tv-customer_name">—</span></div>
                         <div class="ticket-view-row"><span class="ticket-view-label">Account number</span><span class="ticket-view-value" id="tv-account_number">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">Contact number</span><span class="ticket-view-value" id="tv-contact_num">—</span></div>
                         <div class="ticket-view-row"><span class="ticket-view-label">Address</span><span class="ticket-view-value" id="tv-address">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">Cluster</span><span class="ticket-view-value" id="tv-cluster">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">Municipality</span><span class="ticket-view-value" id="tv-municipality">—</span></div>
+                        <div class="ticket-view-row"><span class="ticket-view-label">LongLat</span><span class="ticket-view-value" id="tv-longlat">—</span></div>
                     </section>
                     <section class="ticket-view-section ticket-view-section-full">
                         <h6 class="ticket-view-section-title">Issue</h6>
+                        <div class="ticket-view-value-block" id="tv-issue">—</div>
+                    </section>
+                    <section class="ticket-view-section ticket-view-section-full">
+                        <h6 class="ticket-view-section-title">Description / details</h6>
                         <div class="ticket-view-value-block" id="tv-description">—</div>
                     </section>
                     <section class="ticket-view-section">
@@ -906,6 +919,9 @@ requireLogin();
                 </div>
             </div>
             <div class="modal-footer ticket-view-modal-footer">
+                <button type="button" class="btn btn-outline-danger" id="btn-generate-receipt" onclick="downloadTicketReceiptPdf()">
+                    <i class="fas fa-file-pdf me-1"></i> Generate receipt
+                </button>
                 <button type="button" class="btn btn-success" onclick="sendCurrentTicketViaViber()">
                     <i class="fas fa-copy me-1"></i> Copy for Viber
                 </button>
@@ -916,14 +932,21 @@ requireLogin();
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
 <script>window.USER_ROLE = <?php echo json_encode($_SESSION['role'] ?? ''); ?>;</script>
-<script src="assets/js/app.js"></script>
+<?php
+    // Cache-bust frontend JS so all users load the latest GAS_URL + field mappings.
+    $appJsVersion = @filemtime(__DIR__ . '/assets/js/app.js');
+    $receiptJsVersion = @filemtime(__DIR__ . '/assets/js/receipt-pdf.js');
+?>
+<script src="assets/js/receipt-pdf.js?v=<?=$receiptJsVersion?>"></script>
+<script src="assets/js/app.js?v=<?=$appJsVersion?>"></script>
 <script>
 // Fallback so testGasConnection() works in console even if app.js fails to load
 (function () {
     if (typeof window.testGasConnection !== 'function') {
         window.testGasConnection = async function () {
-            var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbwFLJToht0aT0_peJNT9oGCoRtc4ZaUpbSVVUb7_C1Q221J8iZkpko99X6asVOrX0VPwA/exec';
+            var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbzZfA1WhgUvRtVxjerGwcRqTWZrTUvyzvIlmH9GQl3RmoArGAzeeimHyv_VntVY6MeHsQ/exec';
             console.log('Testing GAS URL:', url);
             try {
                 var r = await fetch(url, { method: 'GET' });
