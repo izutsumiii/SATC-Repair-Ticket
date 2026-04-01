@@ -23,7 +23,8 @@ requireLogin();
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show" id="sidebar">
+        <!-- No Bootstrap col-* here: sidebar is position:fixed; col-* would still reserve row width and block main from expanding when collapsed -->
+        <nav class="d-md-block sidebar collapse show" id="sidebar">
             <div class="sidebar-inner pt-1 px-2">
                 <h4 class="px-2 pb-2 border-bottom d-flex flex-column align-items-center gap-1 sidebar-header">
                     <img src="s2s.png" alt="Logo" class="sidebar-logo">
@@ -134,7 +135,7 @@ requireLogin();
         </button>
 
         <!-- Main Content -->
-        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+        <main class="app-main px-md-4 py-4">
             
             <!-- Dashboard Tab -->
             <div id="dashboard-view">
@@ -301,6 +302,9 @@ requireLogin();
                     <h1 class="h2 mb-0">Data Analytics</h1>
                     <div class="analytics-controls-wrap d-flex flex-wrap gap-2 align-items-center">
                         <div class="d-flex flex-nowrap gap-2 align-items-center">
+                            <button type="button" class="btn btn-sm analytics-export-btn shadow-sm" id="analytics-export-btn" onclick="exportAnalyticsPdf()" title="Export analytics report (PDF)">
+                                <i class="fas fa-file-pdf me-1"></i> Export PDF
+                            </button>
                             <select class="form-select form-select-sm shadow-sm analytics-select" id="analytics-region" style="min-width: 160px;" onchange="updateAnalytics()" title="Filter by region">
                                 <option value="">All Regions</option>
                                 <option value="bukidnon">Bukidnon</option>
@@ -468,11 +472,7 @@ requireLogin();
             <div id="tickets-view" class="hidden-section">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">Tickets</h1>
-                    <?php if (($_SESSION['role'] ?? '') !== 'staff'): ?>
-                    <button class="btn btn-primary shadow-sm" onclick="openTicketModal()">
-                        <i class="fas fa-plus me-2"></i> New Ticket
-                    </button>
-                    <?php endif; ?>
+                    
                 </div>
 
                 <div class="card shadow-sm border-0">
@@ -539,7 +539,6 @@ requireLogin();
                                     <col style="width: 95px;">
                                     <col id="col-second-dispatch" style="width: 95px; display: none;">
                                     <col id="col-third-dispatch" style="width: 95px; display: none;">
-                                    <col style="width: 70px;">
                                 </colgroup>
                                 <thead class="position-sticky top-0" style="z-index: 10;">
                                     <tr>
@@ -556,7 +555,7 @@ requireLogin();
                                         <th onclick="sortTable('first_dispatch')" class="border-0 shadow-sm text-start th-first-dispatch">1st Dispatch <i class="fas fa-sort small ms-1"></i></th>
                                         <th id="th-second-dispatch" onclick="sortTable('date_second_dispatch')" class="border-0 shadow-sm text-start th-second-dispatch d-none">2nd Dispatch <i class="fas fa-sort small ms-1"></i></th>
                                         <th id="th-third-dispatch" onclick="sortTable('date_third_dispatch')" class="border-0 shadow-sm text-start th-third-dispatch d-none">3rd Dispatch <i class="fas fa-sort small ms-1"></i></th>
-                                        <th class="border-0 rounded-end shadow-sm text-start th-actions">Actions</th>
+                                        
                                     </tr>
                                 </thead>
                                 <tbody id="tickets-table-body" class="border-top-0">
@@ -565,10 +564,7 @@ requireLogin();
                             </table>
                         </div>
                         
-                        <!-- Pagination (Placeholder for future implementation if needed) -->
-                        <div class="d-flex justify-content-center mt-4">
-                            <!-- Pagination could go here -->
-                        </div>
+                        <div id="tickets-pagination" class="tickets-pagination d-flex flex-wrap justify-content-center align-items-center gap-2 mt-3" aria-label="Ticket pages"></div>
                     </div>
                 </div>
             </div>
@@ -854,9 +850,7 @@ requireLogin();
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <?php if (($_SESSION['role'] ?? '') !== 'staff'): ?>
-                <button type="button" class="btn btn-primary" id="ticketModalBtnSave" onclick="saveTicket()">Save changes</button>
-                <?php endif; ?>
+                
             </div>
         </div>
     </div>
@@ -935,6 +929,15 @@ requireLogin();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
 <script>window.USER_ROLE = <?php echo json_encode($_SESSION['role'] ?? ''); ?>;</script>
 <?php
+    $__appCfg = require __DIR__ . '/api/config.php';
+    $__gasUrl = $__appCfg['gas_webapp_url'] ?? '';
+    // Set false only to debug browser → Google directly (usually fails due to CORS/cache). Prefer true.
+    $__useGasProxy = true;
+?>
+<script>
+window.GAS_CONFIG = <?php echo json_encode(['webappUrl' => $__gasUrl, 'useProxy' => $__useGasProxy], JSON_UNESCAPED_SLASHES); ?>;
+</script>
+<?php
     // Cache-bust frontend JS so all users load the latest GAS_URL + field mappings.
     $appJsVersion = @filemtime(__DIR__ . '/assets/js/app.js');
     $receiptJsVersion = @filemtime(__DIR__ . '/assets/js/receipt-pdf.js');
@@ -946,10 +949,11 @@ requireLogin();
 (function () {
     if (typeof window.testGasConnection !== 'function') {
         window.testGasConnection = async function () {
-            var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbzZfA1WhgUvRtVxjerGwcRqTWZrTUvyzvIlmH9GQl3RmoArGAzeeimHyv_VntVY6MeHsQ/exec';
+                    var url = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbwqqTB1TTHP4wMWr9j6A1F8QRVopOTLDqUPZwEciFNg6X4EG6w_cMxp7s2OV3AlLBhqhQ/exec';
+            var bust = (typeof window.gasWebAppUrl === 'function') ? window.gasWebAppUrl() : (url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cb=' + Date.now());
             console.log('Testing GAS URL:', url);
             try {
-                var r = await fetch(url, { method: 'GET' });
+                var r = await fetch(bust, { method: 'GET', cache: 'no-store' });
                 console.log('Status:', r.status, r.statusText);
                 var text = await r.text();
                 console.log('Response (first 300 chars):', text.slice(0, 300));
@@ -959,6 +963,24 @@ requireLogin();
                 console.error('Connection failed:', e.message);
                 console.error('Common causes: wrong URL, GAS not set to "Anyone", or opening page from file://');
             }
+        };
+    }
+})();
+</script>
+<script>
+// Safety fallback: keep tab navigation usable if app.js fails to initialize.
+(function () {
+    if (typeof window.showTab !== 'function') {
+        window.showTab = function (tabId) {
+            ['dashboard-view', 'clusters-view', 'analytics-view', 'tickets-view', 'teams-view', 'users-view'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.classList.add('hidden-section');
+            });
+            document.querySelectorAll('.nav-link').forEach(function (el) { el.classList.remove('active'); });
+            var viewEl = document.getElementById(tabId + '-view');
+            if (viewEl) viewEl.classList.remove('hidden-section');
+            var navLink = document.querySelector('.nav-link[onclick="showTab(\'' + tabId + '\')"]');
+            if (navLink) navLink.classList.add('active');
         };
     }
 })();

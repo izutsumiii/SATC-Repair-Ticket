@@ -28,6 +28,20 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    /* Sidebar ↔ main width: one code path (no :has() scan, no inline styles on main/footer) */
+    --sidebar-main-offset: 16.66667%;
+    --sidebar-main-width: calc(100% - 16.66667%);
+}
+
+body.sidebar-layout-collapsed {
+    --sidebar-main-offset: 70px;
+    --sidebar-main-width: calc(100% - 70px);
+}
+
+/* Hint GPU only while the sidebar transition runs (class toggled from JS ~300ms) */
+body.sidebar-resizing main,
+body.sidebar-resizing .system-footer {
+    will-change: margin-left, width;
 }
 
 /* ========== SIDEBAR STRUCTURE ========== */
@@ -47,6 +61,9 @@ body {
     flex-direction: column;
     width: 16.66667%;
     transition: width 0.3s ease;
+    /* Fixed nav is still a flex child of .row; zero flex base so it does not reserve a "ghost" column */
+    flex: 0 0 0;
+    min-width: 0;
 }
 
 /* Sidebar inner: flex container to push user section to bottom */
@@ -122,6 +139,10 @@ body {
     transition: all 0.3s ease;
     z-index: 1000;
     user-select: none;
+}
+
+body.sidebar-layout-collapsed .sidebar-toggle {
+    left: 55px;
 }
 
 .sidebar-toggle:hover {
@@ -488,18 +509,14 @@ body {
     }
 }
 
-/* Main Content */
-main {
-    margin-left: 16.66667%; /* Bootstrap col-md-2 width */
-    padding: 2rem;
+/* Main Content — flex fills row; width/margin track fixed sidebar (Bootstrap col-* + ms-sm-auto fought this) */
+main.app-main {
+    flex: 1 1 0%;
+    min-width: 0;
+    margin-left: var(--sidebar-main-offset);
+    width: var(--sidebar-main-width);
+    max-width: none;
     transition: margin-left 0.3s ease, width 0.3s ease;
-    width: calc(100% - 16.66667%);
-    max-width: 100%;
-}
-
-body:has(.sidebar.collapsed) main {
-    margin-left: 70px;
-    width: calc(100% - 70px);
 }
 
 h1.h2 {
@@ -958,6 +975,35 @@ h1.h2 {
     border-radius: var(--radius);
     padding-right: 2px;
 }
+
+.tickets-pagination .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.tickets-page-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.tickets-page-nav,
+.tickets-page-btn {
+    border: 1px solid #d6dbe2;
+    background: #fff;
+    color: #495057;
+    min-width: 34px;
+}
+.tickets-page-btn.active,
+.tickets-page-btn[aria-current="page"] {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 0 0 0.15rem rgba(214, 51, 132, 0.18);
+}
+.tickets-page-dots {
+    color: #6c757d;
+    padding: 0 0.15rem;
+}
 .tickets-table-wrapper::-webkit-scrollbar {
     height: 8px;
     width: 8px;
@@ -1016,15 +1062,7 @@ h1.h2 {
 #tickets-table th:nth-child(7) { width: 11%; min-width: 7.5rem; }   /* Status */
 #tickets-table th:nth-child(8) { width: 8%; min-width: 6rem; }   /* Risk */
 #tickets-table th:nth-child(9) { width: 7%; min-width: 5rem; }   /* Team */
-/* Checkbox column: narrow fixed width so ticket number can overlap into remaining space without covering checkbox */
-#tickets-table tbody td:nth-child(1) {
-    width: 2.25rem;
-    min-width: 2.25rem;
-    max-width: 2.25rem;
-    padding-left: 0.5rem;
-    padding-right: 0.25rem;
-    box-sizing: border-box;
-}
+/* Checkbox column widths: see .tickets-responsive tbody rules below */
 /* Ticket number value cell - overflow visible so inner span can overlap left */
 #tickets-table td.ticket-number-value-cell {
     color: var(--table-text, #212529);
@@ -1155,14 +1193,13 @@ h1.h2 {
 .tickets-responsive .th-contact { width: 95px; max-width: 95px; }
 .tickets-responsive .th-date { width: 110px; max-width: 110px; }
 .tickets-responsive .th-customer { width: 110px; max-width: 110px; }
-.tickets-responsive .th-issue { width: 140px; max-width: 140px; }
+.tickets-responsive .th-issue { width: auto; max-width: none; min-width: 200px; }
 .tickets-responsive .th-status { width: 95px; max-width: 95px; }
 .tickets-responsive .th-risk { width: 80px; max-width: 80px; }
 .tickets-responsive .th-team { width: 90px; max-width: 90px; }
 .tickets-responsive .th-first-dispatch { width: 95px; max-width: 95px; }
 .tickets-responsive .th-second-dispatch { width: 95px; max-width: 95px; }
 .tickets-responsive .th-third-dispatch { width: 95px; max-width: 95px; }
-.tickets-responsive .th-actions { width: 70px; max-width: 70px; }
 
 /* Body cells - match header widths exactly */
 #tickets-table tbody td:nth-child(1) { width: 35px; max-width: 35px; text-align: center; padding: 0.5rem 0.25rem; }
@@ -1171,14 +1208,13 @@ h1.h2 {
 #tickets-table tbody td:nth-child(4) { width: 95px; max-width: 95px; }
 #tickets-table tbody td:nth-child(5) { width: 110px; max-width: 110px; }
 #tickets-table tbody td:nth-child(6) { width: 110px; max-width: 110px; }
-#tickets-table tbody td:nth-child(7) { width: 140px; max-width: 140px; }
+#tickets-table tbody td:nth-child(7) { width: auto; max-width: none; min-width: 200px; }
 #tickets-table tbody td:nth-child(8) { width: 95px; max-width: 95px; }
 #tickets-table tbody td:nth-child(9) { width: 80px; max-width: 80px; }
 #tickets-table tbody td:nth-child(10) { width: 90px; max-width: 90px; }
 #tickets-table tbody td:nth-child(11) { width: 95px; max-width: 95px; }
 #tickets-table tbody td:nth-child(12) { width: 95px; max-width: 95px; }
 #tickets-table tbody td:nth-child(13) { width: 95px; max-width: 95px; }
-#tickets-table tbody td:nth-child(14) { width: 70px; max-width: 70px; }
 
 /* Inner content truncation */
 #tickets-table tbody td > * {
@@ -1206,6 +1242,7 @@ h1.h2 {
 }
 #tickets-table tbody td:nth-child(7) .ticket-issue {
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
@@ -1815,6 +1852,30 @@ table td .section-loader {
     min-width: 10rem;
     padding-right: 2rem;
 }
+.analytics-export-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 170px;
+    padding: 0.28rem 1rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #ff4f9a 0%, #e0317a 100%);
+    border: 1px solid #e0317a;
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+.analytics-export-btn:hover,
+.analytics-export-btn:focus {
+    background: linear-gradient(135deg, #e0317a 0%, #c2185b 100%);
+    border-color: #c2185b;
+    color: #fff;
+}
+.analytics-export-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
 .analytics-select:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 0.25rem rgba(255, 64, 129, 0.25);
@@ -1966,9 +2027,13 @@ table td .section-loader {
         height: auto;
         padding-top: 0;
         min-height: auto;
+        flex: none;
+        width: 100% !important;
     }
-    main {
+    main.app-main {
         margin-left: 0;
+        width: 100%;
+        max-width: 100%;
     }
 }
 
@@ -2273,7 +2338,7 @@ table td .section-loader {
 }
 .system-footer {
     flex-shrink: 0;
-    margin-left: 16.66667%;
+    margin-left: var(--sidebar-main-offset);
     padding: 0.75rem 1.5rem 0.9rem;
     background: #fff;
     border-top: 1px solid #e9ecef;
@@ -2283,12 +2348,7 @@ table td .section-loader {
     display: flex;
     align-items: center;
     transition: margin-left 0.3s ease, width 0.3s ease;
-    width: calc(100% - 16.66667%);
-}
-
-body:has(.sidebar.collapsed) .system-footer {
-    margin-left: 70px;
-    width: calc(100% - 70px);
+    width: var(--sidebar-main-width);
 }
 .footer-inner {
     display: flex;

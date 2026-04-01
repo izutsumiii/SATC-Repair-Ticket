@@ -11,56 +11,86 @@ let refreshInterval = null;  // Handle for the interval
 // Sidebar toggle function
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
-    const main = document.querySelector('main');
-    const footer = document.querySelector('.system-footer');
     const toggleBtn = document.getElementById('sidebarToggle');
     const icon = toggleBtn.querySelector('i');
-    
+
+    document.body.classList.add('sidebar-resizing');
     sidebar.classList.toggle('collapsed');
-    
-    // Change arrow direction based on sidebar state
-    if (sidebar.classList.contains('collapsed')) {
-        // Sidebar is closed - show right arrow (to open)
+    const collapsed = sidebar.classList.contains('collapsed');
+    document.body.classList.toggle('sidebar-layout-collapsed', collapsed);
+
+    if (collapsed) {
         icon.classList.remove('fa-chevron-left');
         icon.classList.add('fa-chevron-right');
-        main.style.marginLeft = '70px';
-        main.style.width = 'calc(100% - 70px)';
-        if (footer) {
-            footer.style.marginLeft = '70px';
-            footer.style.width = 'calc(100% - 70px)';
-        }
-        toggleBtn.style.left = '55px';
     } else {
-        // Sidebar is open - show left arrow (to close)
         icon.classList.remove('fa-chevron-right');
         icon.classList.add('fa-chevron-left');
-        main.style.marginLeft = '16.66667%';
-        main.style.width = 'calc(100% - 16.66667%)';
-        if (footer) {
-            footer.style.marginLeft = '16.66667%';
-            footer.style.width = 'calc(100% - 16.66667%)';
-        }
-        toggleBtn.style.left = 'calc(16.66667% - 15px)';
     }
+
+    window.setTimeout(function () {
+        document.body.classList.remove('sidebar-resizing');
+    }, 320);
 }
 
 // --- CONFIGURATION ---
 // Set to 'php' (local) or 'gas' (Google Apps Script)
 const API_MODE = 'gas';
 
-// PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE (must end with /exec):
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZfA1WhgUvRtVxjerGwcRqTWZrTUvyzvIlmH9GQl3RmoArGAzeeimHyv_VntVY6MeHsQ/exec';
-window.GAS_URL = GAS_URL; // so console test and fallback can use it
+// Real GAS /exec URL: prefer api/config.php (injected as window.GAS_CONFIG) so api/gas_proxy.php can forward server-side.
+const GAS_URL = (typeof window.GAS_CONFIG !== 'undefined' && window.GAS_CONFIG.webappUrl)
+    ? window.GAS_CONFIG.webappUrl
+    : 'https://script.google.com/macros/s/AKfycbwqqTB1TTHP4wMWr9j6A1F8QRVopOTLDqUPZwEciFNg6X4EG6w_cMxp7s2OV3AlLBhqhQ/exec';
+/** When true (set in index.php), fetch goes to api/gas_proxy.php — avoids browser→Google CORS, redirects, and cache issues. */
+const GAS_USE_PROXY = typeof window.GAS_CONFIG !== 'undefined' && window.GAS_CONFIG.useProxy === true;
+window.GAS_URL = GAS_URL;
 
-// GAS TROUBLESHOOTING (Network error / connection failed):
-// 1. Deploy: In Google Apps Script â†’ Deploy â†’ Manage deployments â†’ Edit â†’ set "Who has access" to "Anyone".
-// 2. URL: After redeploy, copy the new Web app URL and paste it in GAS_URL above (replace the whole string).
-// 3. Run via HTTP: Open the app at http://localhost/... (XAMPP), not as file:// (file on disk).
-// 4. Test in console: Open DevTools (F12) â†’ Console â†’ type: testGasConnection()
-//    This will try to call GAS and print the real error or "OK" so you can debug.
+/** Target URL for each GAS request (direct /exec with _cb, or same-origin proxy + _cb). */
+function gasWebAppUrl() {
+    const bust = '_cb=' + Date.now();
+    if (GAS_USE_PROXY) {
+        return 'api/gas_proxy.php?' + bust;
+    }
+    const sep = GAS_URL.includes('?') ? '&' : '?';
+    return `${GAS_URL}${sep}${bust}`;
+}
+window.gasWebAppUrl = gasWebAppUrl;
 
-// Auto-refresh interval in milliseconds (e.g., 2000 = 2 seconds)
-const REFRESH_RATE = 2000 
+/** If response is an error, try to read { error } from JSON (e.g. api/gas_proxy.php curl message). */
+async function gasReadErrorFromBody(response) {
+    try {
+        const j = await response.clone().json();
+        if (j && j.error != null && String(j.error).trim() !== '') {
+            return String(j.error).trim();
+        }
+    } catch (e) { /* not JSON */ }
+    return '';
+}
+
+/** GAS returns JSON; treat success as true only when there is no error field. */
+function gasSaveSucceeded(result) {
+    if (!result || result.error != null) return false;
+    const s = result.success;
+    return s === true || s === 'true' || s === 1;
+}
+
+// GAS TROUBLESHOOTING — if tickets do not appear in your Google Sheet or the site:
+// A. Binding: Writes go to ONE spreadsheet. Either open the script from Extensions → Apps Script ON
+//    that sheet, OR in scripts/google_apps_script.js set CONFIG.SPREADSHEET_ID to the master file ID
+//    from the URL (.../d/SHEET_ID/edit), paste into Apps Script, redeploy, re-authorize if prompted.
+// B. Deployment URL: Deploy → Manage deployments → copy /exec URL; it must match GAS_URL above exactly.
+// C. New version: After editing code in the Apps Script editor, Edit deployment → New version → Deploy.
+// D. Executions: Apps Script → Executions — after Save, doPost should run; open failures for errors.
+// E. Sheet tab: scripts/google_apps_script.js CONFIG.SHEET_NAME must match a tab (default "REPAIR").
+// F. Headers: JO NUMBER column must exist and map to ticket_id (see COLUMN_MAP in that file).
+// G. Network: DevTools → Network → POST to api/gas_proxy.php (or .../exec if proxy off) → JSON from script.
+// G2. Ticket list uses POST { action: 'read' } (not GET) so new rows appear right after create; GET is often cached.
+// H. Deploy access: "Who has access" = Anyone (or your org) so PHP cURL can call the web app.
+// I. Run app over http://localhost/... (XAMPP), not file://
+// J. Console: testGasConnection() — tests GET via proxy or direct.
+// K. gas_webapp_url in api/config.php must match your deployment; GAS_USE_PROXY in index.php uses server-side forward.
+
+// Auto-refresh interval (ms). GAS reads can take several seconds; 2s stacks requests and PHP session locks — use a longer interval in gas mode.
+const REFRESH_RATE = API_MODE === 'gas' ? 15000 : 2000;
 
 // Risk Keywords Configuration
 const RISK_RULES = {
@@ -102,15 +132,44 @@ function ticketIssueDisplay(t) {
     const s = String(t.issue).trim();
     return s;
 }
+
+function ticketCitySource(t) {
+    return String((t && (t.city || t.municipality)) || '').trim();
+}
+
+function ticketClusterSource(t) {
+    return String((t && (t.risk_level_source || t.cluster)) || '').trim();
+}
 // ---------------------
 
-function getApiUrl(params = '') {
+/**
+ * @param {string} params - query string e.g. action=read
+ * @param {boolean} bustCache - GAS web apps cache GET /exec responses; bust to see fresh sheet data after POST
+ */
+function getApiUrl(params = '', bustCache = false) {
     if (API_MODE === 'gas') {
         const separator = GAS_URL.includes('?') ? '&' : '?';
-        return `${GAS_URL}${separator}${params}`;
-    } else {
-        return `api/api.php?${params}`;
+        let url = `${GAS_URL}${separator}${params}`;
+        if (bustCache) {
+            url += '&_cb=' + Date.now();
+        }
+        return url;
     }
+    return `api/api.php?${params}`;
+}
+
+/**
+ * Load ticket list from GAS using POST. Google may cache GET /exec; POST with identical URL+body
+ * can still be cached by intermediaries — always use gasWebAppUrl() + cache: 'no-store'.
+ * Uses text/plain body (same as saveTicket) to avoid CORS preflight.
+ */
+async function fetchGasTickets() {
+    return fetch(gasWebAppUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'read' }),
+        cache: 'no-store'
+    });
 }
 
 /** Run in browser console (F12 â†’ Console): testGasConnection()
@@ -118,7 +177,7 @@ function getApiUrl(params = '') {
 window.testGasConnection = async function () {
     console.log('Testing GAS URL:', GAS_URL);
     try {
-        const r = await fetch(GAS_URL, { method: 'GET' });
+        const r = await fetch(gasWebAppUrl(), { method: 'GET', cache: 'no-store' });
         console.log('Status:', r.status, r.statusText);
         const text = await r.text();
         console.log('Response (first 300 chars):', text.slice(0, 300));
@@ -308,6 +367,7 @@ function showTab(tabId) {
     // Load specific data
     refreshCurrentTab();
 }
+window.showTab = showTab;
 
 // --- Dashboard ---
 // Filter dashboard by Month/Year. Year only = all data for that year; Month + Year = that month only. Uses date_created from sheet.
@@ -399,8 +459,8 @@ function updateDashboard() {
         const regionDef = REGION_DEFS[regionVal];
         if (regionDef) {
             filtered = filtered.filter(t => {
-                const cityUpper = String(t.city || '').toUpperCase();
-                const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                const cityUpper = ticketCitySource(t).toUpperCase();
+                const clusterUpper = ticketClusterSource(t).toUpperCase();
 
                 return regionDef.areas.some(a => {
                     if (regionDef.type === 'city') {
@@ -428,16 +488,25 @@ function updateDashboard() {
 
 async function loadDashboard() {
     try {
-        const url = getApiUrl('action=read');
-        const response = await fetch(url);
-        const data = await response.json();
+        const response = API_MODE === 'gas'
+            ? await fetchGasTickets()
+            : await fetch(getApiUrl('action=read', true), { cache: 'no-store' });
+        if (!response.ok) {
+            const detail = await gasReadErrorFromBody(response);
+            const el = document.getElementById('summary-cards');
+            if (el) {
+                el.innerHTML = `<div class="col-12 text-center text-danger">Error: server returned ${response.status}.${detail ? ' ' + escapeHtml(detail) : ' Check GAS deployment and api/config.php gas_webapp_url.'}</div>`;
+            }
+            return;
+        }
+        const raw = await response.json();
 
-        if (data.error) {
-            document.getElementById('summary-cards').innerHTML = `<div class="col-12 text-center text-danger">Error: ${data.error}</div>`;
+        if (raw.error) {
+            document.getElementById('summary-cards').innerHTML = `<div class="col-12 text-center text-danger">Error: ${raw.error}</div>`;
             return;
         }
 
-        allTickets = Array.isArray(data) ? data : (data && Array.isArray(data.tickets) ? data.tickets : []);
+        allTickets = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.tickets) ? raw.tickets : []);
         updateDashboard();
     } catch (e) {
         console.error("Error loading dashboard:", e);
@@ -567,8 +636,8 @@ function updateClusters() {
         regionDef.areas.forEach(a => { byArea[a.label] = 0; });
 
         regionTickets = filtered.filter(t => {
-            const cityUpper = String(t.city || '').toUpperCase();
-            const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+            const cityUpper = ticketCitySource(t).toUpperCase();
+            const clusterUpper = ticketClusterSource(t).toUpperCase();
 
             let match = false;
             regionDef.areas.forEach(a => {
@@ -591,8 +660,8 @@ function updateClusters() {
         // No region selected: group by city/municipality (or cluster), and add region totals (e.g. Bukidnon)
         const generic = {};
         filtered.forEach(t => {
-            const city = String(t.city || '').trim();
-            const cluster = String(t.risk_level_source || '').trim();
+            const city = ticketCitySource(t);
+            const cluster = ticketClusterSource(t);
             const key = city || cluster || 'Unspecified';
             if (!generic[key]) generic[key] = 0;
             generic[key] += 1;
@@ -604,8 +673,8 @@ function updateClusters() {
             const def = REGION_DEFS[regionKey];
             let total = 0;
             filtered.forEach(t => {
-                const cityUpper = String(t.city || '').toUpperCase();
-                const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                const cityUpper = ticketCitySource(t).toUpperCase();
+                const clusterUpper = ticketClusterSource(t).toUpperCase();
                 def.areas.forEach(a => {
                     if (def.type === 'city' && cityUpper.indexOf(a.key) !== -1) total += 1;
                     else if (def.type === 'cluster' && clusterUpper.indexOf(a.key) !== -1) total += 1;
@@ -690,8 +759,8 @@ function updateClusters() {
                 const def = Object.values(REGION_DEFS).find(d => String(d.label).toUpperCase() === labUpper);
                 if (def) {
                     return filtered.filter(t => {
-                        const cityUpper = String(t.city || '').toUpperCase();
-                        const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                        const cityUpper = ticketCitySource(t).toUpperCase();
+                        const clusterUpper = ticketClusterSource(t).toUpperCase();
                         for (const a of def.areas) {
                             if (def.type === 'city' && cityUpper.indexOf(a.key) !== -1) return true;
                             if (def.type === 'cluster' && clusterUpper.indexOf(a.key) !== -1) return true;
@@ -705,8 +774,8 @@ function updateClusters() {
                     const area = d.areas.find(a => String(a.label).toUpperCase() === labUpper);
                     if (area) {
                         return filtered.filter(t => {
-                            const cityUpper = String(t.city || '').toUpperCase();
-                            const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                            const cityUpper = ticketCitySource(t).toUpperCase();
+                            const clusterUpper = ticketClusterSource(t).toUpperCase();
                             if (d.type === 'city') return cityUpper.indexOf(area.key) !== -1;
                             if (d.type === 'cluster') return clusterUpper.indexOf(area.key) !== -1;
                             return false;
@@ -716,8 +785,8 @@ function updateClusters() {
                 // 3) Generic city/municipality (exact or case-insensitive)
                 const key = lab || 'Unspecified';
                 return filtered.filter(t => {
-                    const c = String(t.city || '').trim();
-                    const cl = String(t.risk_level_source || '').trim();
+                    const c = ticketCitySource(t);
+                    const cl = ticketClusterSource(t);
                     const k = c || cl || 'Unspecified';
                     return k === key || k.toUpperCase() === labUpper;
                 });
@@ -733,9 +802,7 @@ function updateClusters() {
                     <td class="text-muted">${escapeHtml(t.customer_name || '')}</td>
                     <td><span class="badge bg-${statusColor}" style="font-size: 0.65rem;">${escapeHtml(displayStatus)}</span></td>
                     <td><span class="badge bg-${riskColor}" style="font-size: 0.65rem;">${escapeHtml(t.risk_level || '')}</span></td>
-                    <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-light text-primary border-0 py-1 px-2 btn-edit-cluster-ticket" title="Edit ticket"><i class="fas fa-edit"></i> Edit</button>
-                    </td>
+                    <td class="text-end"></td>
                 </tr>`;
             }
             function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -806,26 +873,6 @@ function clustersAccordionOnClick(e) {
     const listEl = document.getElementById('clusters-region-list');
     if (!listEl) return;
     
-    // Handle edit button clicks
-    const editBtn = e.target.closest('.btn-edit-cluster-ticket');
-    if (editBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const row = editBtn.closest('.clusters-ticket-row');
-        if (row) {
-            const json = row.getAttribute('data-ticket-json');
-            if (json) {
-                try {
-                    const ticket = JSON.parse(json.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
-                    editTicket(ticket);
-                } catch (err) {
-                    console.error('Failed to parse ticket JSON:', err);
-                }
-            }
-        }
-        return;
-    }
-
     // Handle card header clicks to toggle expansion
     const header = e.target.closest('.clusters-location-header');
     if (header) {
@@ -975,7 +1022,7 @@ async function loadTickets(preserveFilters = false) {
         if (!preserveFilters) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="14" class="py-5 text-center"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="py-5 text-center"><div class="section-loader"><div class="loader"></div><p>Loading Data. Please Wait...</p></div></td></tr>';
             }
         }
         
@@ -990,98 +1037,54 @@ async function loadTickets(preserveFilters = false) {
             if (riskFilter) riskFilter.value = '';
         }
         
-        const url = getApiUrl('action=read');
-        console.log('Fetching tickets from:', url);
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        console.log('Tickets API response:', data);
-        
-        // GAS error check
-        if (data.error) {
-            console.error('API returned error:', data.error);
+        const url = getApiUrl('action=read', true);
+        console.log('Fetching tickets from:', API_MODE === 'gas' ? 'GAS POST action=read' : url);
+
+        const response = API_MODE === 'gas'
+            ? await fetchGasTickets()
+            : await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+            const detail = await gasReadErrorFromBody(response);
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                let errorMsg = data.error;
+                const msg = detail ? escapeHtml(detail) : 'Check GAS deployment, api/config.php gas_webapp_url, and XAMPP PHP cURL.';
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: server returned ' + response.status + '. ' + msg + '</td></tr>';
+            }
+            return;
+        }
+        const raw = await response.json();
+        
+        console.log('Tickets API response:', raw);
+        
+        // GAS error check
+        if (raw.error) {
+            console.error('API returned error:', raw.error);
+            const tbody = document.getElementById('tickets-table-body');
+            if (tbody) {
+                let errorMsg = raw.error;
                 // Translate common error messages to English
                 if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
                     errorMsg = 'Too many requests. Please wait a moment and try again.';
                 }
-                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + escapeHtml(errorMsg) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading tickets: ' + escapeHtml(errorMsg) + '</td></tr>';
             }
             return;
         }
 
-        // Check if data is an array
-        if (!Array.isArray(data)) {
-            console.error('API did not return an array:', data);
+        const data = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.tickets) ? raw.tickets : null);
+        if (!data) {
+            console.error('API did not return an array:', raw);
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid data format received</td></tr>';
             }
             return;
         }
 
         allTickets = data;
         
-        // #region agent log - location fields presence from GAS
-        try {
-            const tickets = Array.isArray(allTickets) ? allTickets : [];
-            const isNonEmpty = (v) => v != null && String(v).trim() !== '';
-            const clusterNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.cluster) ? 1 : 0), 0);
-            const municipalityNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.municipality) ? 1 : 0), 0);
-            const longlatNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.longlat) ? 1 : 0), 0);
-            const latitudeNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.latitude) ? 1 : 0), 0);
-            const longitudeNonEmpty = tickets.reduce((acc, t) => acc + (isNonEmpty(t && t.longitude) ? 1 : 0), 0);
-            const sample = tickets.find(t =>
-                isNonEmpty(t && t.cluster) ||
-                isNonEmpty(t && t.municipality) ||
-                isNonEmpty(t && t.longlat) ||
-                isNonEmpty(t && t.latitude) ||
-                isNonEmpty(t && t.longitude)
-            ) || null;
-
-            fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Debug-Session-Id': '7b9856'
-                },
-                body: JSON.stringify({
-                    sessionId: '7b9856',
-                    location: 'assets/js/app.js:loadTickets/allTickets',
-                    message: 'Loaded tickets; check location-field presence',
-                    hypothesisId: 'H1_gas_or_frontend',
-                    data: {
-                        totalTickets: tickets.length,
-                        clusterNonEmpty,
-                        municipalityNonEmpty,
-                        longlatNonEmpty,
-                        latitudeNonEmpty,
-                        longitudeNonEmpty,
-                        sampleTicket: sample ? {
-                            ticket_id: sample.ticket_id,
-                            ticket_id_form: sample.ticket_id_form,
-                            cluster: sample.cluster,
-                            municipality: sample.municipality,
-                            longlat: sample.longlat,
-                            latitude: sample.latitude,
-                            longitude: sample.longitude
-                        } : null
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        } catch (e) {}
-        // #endregion
-        
-        // Sort by date_created descending (newest first)
-        allTickets.sort((a, b) => {
-            const dateA = new Date(a.date_created || '1970-01-01');
-            const dateB = new Date(b.date_created || '1970-01-01');
-            return dateB - dateA; // Descending (newest first)
-        });
+        // Newest first: ticket # sequence (S2SREPAIR-nnnnn), then date — so a new ticket appears on top
+        allTickets.sort(compareTicketsNewestFirst);
         
         // Check for new tickets and update badge
         checkForNewTickets();
@@ -1092,7 +1095,7 @@ async function loadTickets(preserveFilters = false) {
         if (allTickets.length === 0) {
             const tbody = document.getElementById('tickets-table-body');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-muted"><i class="fas fa-inbox me-2"></i>No tickets available</td></tr>';
             }
             const countEl = document.getElementById('ticket-count');
             if(countEl) countEl.innerText = 'No tickets';
@@ -1122,7 +1125,7 @@ async function loadTickets(preserveFilters = false) {
             if (errorMsg.toLowerCase().includes('madaming') || errorMsg.toLowerCase().includes('too many')) {
                 errorMsg = 'Too many requests. Please wait a moment and try again.';
             }
-            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + escapeHtml(errorMsg) + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + escapeHtml(errorMsg) + '</td></tr>';
         }
         updateExportButton();
     }
@@ -1162,26 +1165,130 @@ function getTicketIdFormValue(ticket) {
     return direct || '';
 }
 
-// Store selected ticket IDs to preserve checkbox state
+/** Numeric part of S2SREPAIR-000921 for ordering (higher = newer row). Returns -1 if missing/invalid. */
+function ticketIdFormSequence(t) {
+    const v = getTicketIdFormValue(t);
+    const m = /^S2SREPAIR-(\d+)$/i.exec(String(v || '').trim());
+    if (m) return parseInt(m[1], 10);
+    return -1;
+}
+
+/**
+ * Newest-first: primary by ticket # sequence (matches sheet append order), then date_created, then JO.
+ * Fixes rows that share the same calendar date sorting in random order.
+ */
+function compareTicketsNewestFirst(a, b) {
+    const seqA = ticketIdFormSequence(a);
+    const seqB = ticketIdFormSequence(b);
+    if (seqA >= 0 || seqB >= 0) {
+        if (seqA < 0) return 1;
+        if (seqB < 0) return -1;
+        if (seqB !== seqA) return seqB - seqA;
+    }
+    const tA = typeof parseDateSafe === 'function' ? parseDateSafe(a && a.date_created) : null;
+    const tB = typeof parseDateSafe === 'function' ? parseDateSafe(b && b.date_created) : null;
+    const msA = tA ? tA.getTime() : 0;
+    const msB = tB ? tB.getTime() : 0;
+    if (msB !== msA) return msB - msA;
+    if (seqB !== seqA) return seqB - seqA;
+    return String(b && b.ticket_id || '').localeCompare(String(a && a.ticket_id || ''), undefined, { numeric: true });
+}
+
+// Store selected ticket IDs to preserve checkbox state (works across paginated pages)
 let selectedTicketIds = new Set();
 
+/** Rows per page: keeps DOM small so Tickets tab loads/paints fast; data still fully loaded in memory. */
+const TICKETS_PAGE_SIZE = 75;
+let ticketsViewList = [];
+let ticketsViewPage = 0;
+
+function updateTicketsPaginationUI(total, startIndex, pageRowCount) {
+    const el = document.getElementById('tickets-pagination');
+    if (!el) return;
+    if (!total || pageRowCount === 0) {
+        el.innerHTML = '';
+        return;
+    }
+    const pageCount = Math.max(1, Math.ceil(total / TICKETS_PAGE_SIZE));
+    const buildPageButtons = function () {
+        if (pageCount <= 9) {
+            return Array.from({ length: pageCount }, function (_, i) { return i; });
+        }
+        const pages = [0];
+        const start = Math.max(1, ticketsViewPage - 1);
+        const end = Math.min(pageCount - 2, ticketsViewPage + 1);
+        if (start > 1) pages.push('dots-left');
+        for (let i = start; i <= end; i++) pages.push(i);
+        if (end < pageCount - 2) pages.push('dots-right');
+        pages.push(pageCount - 1);
+        return pages;
+    };
+    const pageButtonsHtml = buildPageButtons().map(function (p) {
+        if (typeof p !== 'number') {
+            return '<span class="tickets-page-dots" aria-hidden="true">...</span>';
+        }
+        const isActive = p === ticketsViewPage;
+        return '<button type="button" class="btn btn-sm tickets-page-btn' + (isActive ? ' active' : '') + '" ' +
+            (isActive ? 'aria-current="page"' : '') + ' onclick="goTicketsPage(' + p + ')">' + (p + 1) + '</button>';
+    }).join('');
+    el.innerHTML = `
+        <div class="tickets-page-controls" role="navigation" aria-label="Ticket pages">
+            <button type="button" class="btn btn-sm tickets-page-nav" aria-label="Previous page" title="Previous page" ${ticketsViewPage <= 0 ? 'disabled' : ''} onclick="goTicketsPrevPage()"><i class="fas fa-chevron-left"></i></button>
+            ${pageButtonsHtml}
+            <button type="button" class="btn btn-sm tickets-page-nav" aria-label="Next page" title="Next page" ${ticketsViewPage >= pageCount - 1 ? 'disabled' : ''} onclick="goTicketsNextPage()"><i class="fas fa-chevron-right"></i></button>
+        </div>
+    `;
+}
+
+function goTicketsPrevPage() {
+    if (ticketsViewPage <= 0) return;
+    saveCheckboxStates();
+    ticketsViewPage--;
+    renderTicketsTablePage();
+}
+
+function goTicketsNextPage() {
+    const pageCount = Math.ceil(ticketsViewList.length / TICKETS_PAGE_SIZE);
+    if (ticketsViewPage >= pageCount - 1) return;
+    saveCheckboxStates();
+    ticketsViewPage++;
+    renderTicketsTablePage();
+}
+
+function goTicketsPage(pageIndex) {
+    const pageCount = Math.ceil(ticketsViewList.length / TICKETS_PAGE_SIZE);
+    if (pageCount <= 0) return;
+    const target = Math.max(0, Math.min(pageCount - 1, Number(pageIndex)));
+    if (!Number.isFinite(target) || target === ticketsViewPage) return;
+    saveCheckboxStates();
+    ticketsViewPage = target;
+    renderTicketsTablePage();
+}
+
+/** Full list to display (all or filtered); resets to page 0. */
 function renderTicketsTable(tickets) {
+    ticketsViewList = Array.isArray(tickets) ? tickets : [];
+    ticketsViewPage = 0;
+    renderTicketsTablePage();
+}
+
+function renderTicketsTablePage() {
     const tbody = document.getElementById('tickets-table-body');
     const secondDispatchHeader = document.getElementById('th-second-dispatch');
     const secondDispatchCol = document.getElementById('col-second-dispatch');
     const thirdDispatchHeader = document.getElementById('th-third-dispatch');
     const thirdDispatchCol = document.getElementById('col-third-dispatch');
-    
+
     if (!tbody) {
         console.error('âŒ Tickets table body element (#tickets-table-body) not found!');
         return;
     }
-    
-    console.log('â†’ Rendering tickets table, ticket count:', tickets ? tickets.length : 'null/undefined');
-    
-    // Save current checkbox states before re-rendering
+
+    const tickets = ticketsViewList;
+    console.log('â†’ Rendering tickets table page, total:', tickets ? tickets.length : 0, 'page', ticketsViewPage + 1);
+
     saveCheckboxStates();
-    
+
     const showSecondDispatch = Array.isArray(tickets) && tickets.some(t => {
         const val = t && (t.date_second_dispatch ?? t.second_dispatch);
         return val != null && String(val).trim() !== '';
@@ -1196,15 +1303,17 @@ function renderTicketsTable(tickets) {
     if (thirdDispatchCol) thirdDispatchCol.style.display = showThirdDispatch ? '' : 'none';
 
     if (!tickets || tickets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">No tickets found</td></tr>';
-        console.log('â†’ No tickets to display');
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-muted">No tickets found</td></tr>';
+        updateTicketsPaginationUI(0, 0, 0);
         updateExportButton();
         return;
     }
 
-    // Only check the first row per ticket_id (data can have duplicate ticket_ids; one checkbox per ticket).
+    const start = ticketsViewPage * TICKETS_PAGE_SIZE;
+    const pageTickets = tickets.slice(start, start + TICKETS_PAGE_SIZE);
+
     const checkedRendered = new Set();
-    const rows = tickets.map(t => {
+    const rows = pageTickets.map(t => {
         const displayStatus = normalizeStatus(t.status);
         const statusColor = getStatusColor(t.status);
         const statusIcon = getStatusIcon(t.status);
@@ -1237,23 +1346,27 @@ function renderTicketsTable(tickets) {
             <td class="text-muted small">${escapeHtml(t.first_dispatch)}</td>
             <td class="text-muted small second-dispatch-cell${showSecondDispatch ? '' : ' d-none'}">${escapeHtml(t.date_second_dispatch || t.second_dispatch)}</td>
             <td class="text-muted small third-dispatch-cell${showThirdDispatch ? '' : ' d-none'}">${escapeHtml(t.date_third_dispatch || t.third_dispatch)}</td>
-            ${(function() { var canEdit = (typeof window.USER_ROLE === 'undefined' || window.USER_ROLE !== 'staff'); return canEdit ? '<td class=\"tickets-actions-cell\"><button type=\"button\" class=\"btn btn-sm tickets-action-btn\" onclick=\'editTicket(' + JSON.stringify(t) + ')\' title=\"Edit ticket\"><i class=\"fas fa-edit\"></i> Edit</button></td>' : '<td class=\"tickets-actions-cell\"></td>'; })()}
         </tr>
     `}).join('');
-    
+
     tbody.innerHTML = rows;
+    updateTicketsPaginationUI(tickets.length, start, pageTickets.length);
     updateExportButton();
-    console.log('âœ“ Table HTML updated, row count:', tickets.length);
+    const wrap = document.querySelector('.tickets-table-wrapper');
+    if (wrap) wrap.scrollTop = 0;
+    console.log('âœ“ Table HTML updated, page rows:', pageTickets.length, 'of', tickets.length);
 }
 
-// From test.php: save checked state before re-render so we can restore it in rows.
+// Merge visible checkbox state into selectedTicketIds (does not clear other pages' selections).
 function saveCheckboxStates() {
     try {
         const tbody = document.getElementById('tickets-table-body');
         const checkboxes = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox') : [];
-        const checked = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked') : [];
-        selectedTicketIds.clear();
-        checkboxes.forEach(cb => { if (cb.checked) selectedTicketIds.add(cb.value); });
+        checkboxes.forEach(cb => {
+            const id = cb.value;
+            if (cb.checked) selectedTicketIds.add(id);
+            else selectedTicketIds.delete(id);
+        });
     } catch (e) {
         console.error('saveCheckboxStates:', e);
     }
@@ -1315,7 +1428,7 @@ function filterTickets() {
         console.warn('No tickets data available to filter');
         const tbody = document.getElementById('tickets-table-body');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">No tickets available</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" class="text-center py-5 text-muted">No tickets available</td></tr>';
         }
         updateExportButton();
         return;
@@ -1355,12 +1468,7 @@ function filterTickets() {
         return matchesSearch && matchesStatus && matchesRisk;
     });
 
-    // Maintain newest-first order after filtering
-    filtered.sort((a, b) => {
-        const dateA = new Date(a.date_created || '1970-01-01');
-        const dateB = new Date(b.date_created || '1970-01-01');
-        return dateB - dateA; // Descending (newest first)
-    });
+    filtered.sort(compareTicketsNewestFirst);
 
     console.log(`Filtering tickets: ${filtered.length} of ${allTickets.length} match criteria`);
 
@@ -1376,6 +1484,16 @@ let sortDirection = 1; // 1 for asc, -1 for desc
 function sortTable(column) {
     sortDirection *= -1;
     allTickets.sort((a, b) => {
+        if (column === 'ticket_id_form') {
+            const nA = ticketIdFormSequence(a);
+            const nB = ticketIdFormSequence(b);
+            if (nA < 0 && nB < 0) return 0;
+            if (nA < 0) return 1 * sortDirection;
+            if (nB < 0) return -1 * sortDirection;
+            if (nA < nB) return -1 * sortDirection;
+            if (nA > nB) return 1 * sortDirection;
+            return 0;
+        }
         let valA = a[column];
         let valB = b[column];
         if (valA == null || valA === '') valA = '';
@@ -1408,6 +1526,8 @@ function sortTable(column) {
 // --- CRUD ---
 const ticketModal = new bootstrap.Modal(document.getElementById('ticketModal'));
 const ticketViewModal = new bootstrap.Modal(document.getElementById('ticketViewModal'));
+/** 'new' | 'edit' — do not rely on modal title text (fragile); GAS needs action create vs update. */
+let ticketModalMode = 'edit';
 
 /** Show a toast notification at top right. type: 'success' | 'error' */
 function showToast(message, type = 'success') {
@@ -1441,31 +1561,11 @@ function getNextTicketNumber() {
 }
 
 async function openTicketModal() {
-    setTicketFormEditable(true);
-    const saveBtn = document.getElementById('ticketModalBtnSave');
-    if (saveBtn) saveBtn.style.display = '';
-    document.getElementById('ticketForm').reset();
-    document.getElementById('ticket_id').value = '';
-    document.getElementById('modalTitle').innerText = 'New Ticket';
-    if (!allTickets || allTickets.length === 0) await loadTickets();
-    const nextTicket = getNextTicketNumber();
-    document.getElementById('ticket_id_form').value = nextTicket;
-    const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = nextTicket;
-    document.querySelector('input[name="date_created"]').valueAsDate = new Date();
-    ticketModal.show();
+    showToast('Create ticket is disabled.', 'error');
 }
 
 function editTicket(ticket) {
-    setTicketFormEditable(true);
-    document.getElementById('modalTitle').innerText = 'Edit Ticket #' + ticket.ticket_id;
-    const form = document.getElementById('ticketForm');
-    populateTicketForm(form, ticket);
-    const displayEl = document.getElementById('display-ticket-number');
-    if (displayEl) displayEl.textContent = getTicketIdFormValue(ticket);
-    const saveBtn = document.getElementById('ticketModalBtnSave');
-    if (saveBtn) saveBtn.style.display = '';
-    ticketModal.show();
+    showToast('Edit ticket is disabled.', 'error');
 }
 
 /** Populate ticket form with ticket data (used by edit and view). */
@@ -1496,34 +1596,6 @@ let currentViewTicket = null;
 function viewTicket(ticket) {
     const normalizedTicket = ticket ? Object.assign({}, ticket, { ticket_id_form: getTicketIdFormValue(ticket) }) : ticket;
     currentViewTicket = normalizedTicket; // Store for Viber export
-    
-    // #region agent log - popup receives fields from GAS JSON
-    try {
-        fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Debug-Session-Id': '7b9856'
-            },
-            body: JSON.stringify({
-                sessionId: '7b9856',
-                location: 'assets/js/app.js:viewTicket',
-                message: 'viewTicket() input ticket fields',
-                hypothesisId: 'H2_popup_binding',
-                data: {
-                    ticket_id: normalizedTicket && normalizedTicket.ticket_id,
-                    ticket_id_form: normalizedTicket && normalizedTicket.ticket_id_form,
-                    cluster: normalizedTicket && normalizedTicket.cluster,
-                    municipality: normalizedTicket && normalizedTicket.municipality,
-                    longlat: normalizedTicket && normalizedTicket.longlat,
-                    latitude: normalizedTicket && normalizedTicket.latitude,
-                    longitude: normalizedTicket && normalizedTicket.longitude
-                },
-                timestamp: Date.now()
-            })
-        }).catch(() => {});
-    } catch (e) {}
-    // #endregion
     
     document.getElementById('ticketViewModalTitle').innerText = 'View Ticket #' + (ticket.ticket_id || '');
     const teamEl = document.getElementById('ticketViewModalTeamIndicator');
@@ -1594,6 +1666,16 @@ function setTicketFormEditable(editable) {
     });
 }
 
+/** Primary action label: Create (new ticket) vs Save changes (edit). Clears save-label backup so loading state restores the right text. */
+function syncTicketModalPrimaryButton() {
+    const btn = document.getElementById('ticketModalBtnSave');
+    const titleEl = document.getElementById('modalTitle');
+    if (!btn || !titleEl) return;
+    delete btn.dataset.saveLabelBackup;
+    const isNew = titleEl.innerText === 'New Ticket';
+    btn.innerHTML = isNew ? 'Create' : 'Save changes';
+}
+
 function refreshTicketForm() {
     const form = document.getElementById('ticketForm');
     if (!form) return;
@@ -1607,90 +1689,95 @@ function refreshTicketForm() {
     if (dateInput) dateInput.valueAsDate = new Date();
 }
 
-async function saveTicket() {
-    const form = document.getElementById('ticketForm');
-    const dateCreated = (form.elements['date_created'] && form.elements['date_created'].value) ? form.elements['date_created'].value.trim() : '';
-    const customer = (form.elements['customer_name'] && form.elements['customer_name'].value) ? form.elements['customer_name'].value.trim() : '';
-    const description = (form.elements['description'] && form.elements['description'].value) ? form.elements['description'].value.trim() : '';
-    const joNumber = (form.elements['ticket_id'] && form.elements['ticket_id'].value) ? form.elements['ticket_id'].value.trim() : '';
-    const isNewTicket = !joNumber || document.getElementById('modalTitle').innerText === 'New Ticket';
-
-    if (!dateCreated || !customer || !description) {
-        showToast('Input needed: please fill Date Created, Customer / Unit, and Description.', 'error');
-        return;
-    }
-    if (isNewTicket && !joNumber) {
-        showToast('Input needed: please enter JO number.', 'error');
-        return;
-    }
-
-    const issueHidden = document.getElementById('ticket-form-issue');
-    if (issueHidden) issueHidden.value = description;
-
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-    data.isNewTicket = document.getElementById('modalTitle').innerText === 'New Ticket';
-
-    if (API_MODE === 'gas') {
-        try {
-            const response = await fetch(GAS_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            let result;
-            const contentType = response.headers.get('Content-Type') || '';
-            try {
-                result = await response.json();
-            } catch (parseErr) {
-                const text = await response.text();
-                console.error('GAS response not JSON:', response.status, text.slice(0, 200));
-                showToast(response.ok ? 'Invalid response from server.' : 'Server error ' + response.status + '. Check deployment.', 'error');
-                return;
-            }
-
-            if (result.success || result.ticket_id) {
-                if (result.ticket_id_form) {
-                    showToast('Ticket saved: ' + result.ticket_id_form, 'success');
-                } else {
-                    showToast('Ticket saved successfully.', 'success');
-                }
-                refreshTicketForm();
-                ticketModal.hide();
-                loadTickets();
-                if (!document.getElementById('dashboard-view').classList.contains('hidden-section')) loadDashboard();
-            } else {
-                showToast('Error: ' + (result.error || 'Could not save ticket.'), 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            const msg = e.message || String(e);
-            showToast(msg.includes('Failed to fetch') || msg.includes('NetworkError') ? 'Network error. Check GAS URL and connection.' : 'Error saving ticket: ' + msg, 'error');
+/** Disables the ticket modal Save button and shows a spinner while save is in flight. */
+function setTicketSaveUi(saving) {
+    const btn = document.getElementById('ticketModalBtnSave');
+    if (!btn) return;
+    if (saving) {
+        if (btn.dataset.saveLabelBackup == null) {
+            btn.dataset.saveLabelBackup = btn.innerHTML.trim();
         }
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        const titleEl = document.getElementById('modalTitle');
+        const isNew = titleEl && titleEl.innerText === 'New Ticket';
+        const busyLabel = isNew ? 'Creating...' : 'Saving...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + busyLabel;
     } else {
-        const method = data.ticket_id ? 'PUT' : 'POST';
-        try {
-            const response = await fetch('api/api.php', {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-
-            if (result.success || result.ticket_id) {
-                showToast('Ticket saved successfully.', 'success');
-                refreshTicketForm();
-                ticketModal.hide();
-                loadTickets();
-                if (!document.getElementById('dashboard-view').classList.contains('hidden-section')) loadDashboard();
-            } else {
-                showToast('Error saving ticket.', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('Error saving ticket.', 'error');
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        if (btn.dataset.saveLabelBackup != null) {
+            btn.innerHTML = btn.dataset.saveLabelBackup;
         }
     }
+}
+
+/** When GAS append succeeds but read lags, build a row so the table updates immediately. */
+function buildStubTicketFromGasCreate(formSnapshot, gasResult) {
+    const jo = String(gasResult.ticket_id || '').trim();
+    const ticketForm = String(gasResult.ticket_id_form || '').trim();
+    const desc = formSnapshot.description != null ? String(formSnapshot.description).trim() : '';
+    const issue = formSnapshot.issue != null ? String(formSnapshot.issue).trim() : '';
+    const riskText = ticketRiskText({ description: desc, issue: issue || desc });
+    return {
+        ticket_id: jo,
+        ticket_id_form: ticketForm,
+        submission_timestamp: ticketForm,
+        date_created: formSnapshot.date_created || '',
+        customer_name: formSnapshot.customer_name != null ? String(formSnapshot.customer_name) : '',
+        description: desc,
+        issue: issue || desc,
+        contact_num: formSnapshot.contact_num || '',
+        account_number: formSnapshot.account_number || '',
+        address: formSnapshot.address || '',
+        status: formSnapshot.status || 'Pending',
+        risk_level: calculateRisk(riskText),
+        team: formSnapshot.team || '',
+        technician: formSnapshot.technician || '',
+        date_started: formSnapshot.date_started || '',
+        first_dispatch: formSnapshot.first_dispatch || '',
+        date_completed: formSnapshot.date_completed || '',
+        remarks: formSnapshot.remarks || ''
+    };
+}
+
+/**
+ * After creating a ticket, reload the list with retries (sheet read can briefly lag behind append).
+ * If the JO still never appears, merge a stub so the user sees the row until the next full sync.
+ */
+async function refreshTicketsAfterGasSave(isNewFlow, formSnapshot, gasResult) {
+    if (!isNewFlow) {
+        await loadTickets(true);
+        return;
+    }
+    const jo = String(gasResult.ticket_id || (formSnapshot && formSnapshot.ticket_id) || '').trim();
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (attempt > 0) {
+            await new Promise(function (r) { setTimeout(r, 450 + attempt * 150); });
+        } else {
+            await new Promise(function (r) { setTimeout(r, 550); });
+        }
+        await loadTickets(false);
+        if (jo && allTickets.some(function (t) { return String(t.ticket_id).trim() === jo; })) {
+            return;
+        }
+    }
+    if (jo && formSnapshot && !allTickets.some(function (t) { return String(t.ticket_id).trim() === jo; })) {
+        const stub = buildStubTicketFromGasCreate(formSnapshot, gasResult);
+        allTickets = [stub].concat(allTickets.filter(function (t) { return String(t.ticket_id).trim() !== jo; }));
+        allTickets.sort(compareTicketsNewestFirst);
+        renderTicketsTable(allTickets);
+        const countEl = document.getElementById('ticket-count');
+        if (countEl) {
+            countEl.innerText = 'Showing ' + allTickets.length + ' ticket' + (allTickets.length !== 1 ? 's' : '');
+        }
+        console.warn('Repair ticket list did not include the new JO after several refreshes; showing a local row until the next sync.');
+    }
+}
+
+async function saveTicket() {
+    showToast('Create/Edit is disabled.', 'error');
 }
 
 // --- Analytics ---
@@ -1698,6 +1785,176 @@ async function loadAnalytics() {
     if (allTickets.length === 0) await loadTickets(); // Ensure data is loaded
     toggleMonthYearDropdowns();
     updateAnalytics(true);
+}
+
+async function exportAnalyticsPdf() {
+    const JsPdf = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : null;
+    if (!JsPdf) {
+        showToast('PDF exporter is not available. Refresh the page.', 'error');
+        return;
+    }
+    const exportBtn = document.getElementById('analytics-export-btn');
+
+    try {
+        if (exportBtn) {
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Exporting...';
+        }
+        if (allTickets.length === 0) {
+            await loadTickets();
+        }
+        // Make sure KPIs and charts are freshly rendered before snapshotting.
+        updateAnalytics(true);
+        await new Promise(function (resolve) { requestAnimationFrame(function () { requestAnimationFrame(resolve); }); });
+
+        const doc = new JsPdf({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 12;
+        let y = margin;
+
+        const addSectionGap = function (gap = 6) {
+            y += gap;
+            if (y > pageH - margin) {
+                doc.addPage();
+                y = margin;
+            }
+        };
+
+        const ensureSpace = function (neededHeight) {
+            if (y + neededHeight > pageH - margin) {
+                doc.addPage();
+                y = margin;
+            }
+        };
+
+        const line = function (text, size = 10, color = [33, 37, 41]) {
+            doc.setFontSize(size);
+            doc.setTextColor(color[0], color[1], color[2]);
+            doc.text(String(text), margin, y);
+            y += size * 0.55;
+        };
+
+        const safeText = function (id, fallback) {
+            const el = document.getElementById(id);
+            const v = el ? String(el.innerText || '').trim() : '';
+            return v || fallback;
+        };
+        const inputValue = function (id, fallback) {
+            const el = document.getElementById(id);
+            const v = el ? String(el.value || '').trim() : '';
+            return v || fallback;
+        };
+
+        const selectedText = function (id, fallback) {
+            const el = document.getElementById(id);
+            if (!el || !el.options || el.selectedIndex < 0) return fallback;
+            const txt = String(el.options[el.selectedIndex].text || '').trim();
+            return txt || fallback;
+        };
+
+        const chartImageById = function (canvasId) {
+            const chartRefMap = {
+                trendChart: trendChart,
+                teamWorkloadChart: teamWorkloadChart,
+                completionPendingChart: completionPendingChart
+            };
+            const chartRef = chartRefMap[canvasId];
+            if (chartRef && typeof chartRef.toBase64Image === 'function') {
+                try {
+                    return chartRef.toBase64Image('image/png', 1);
+                } catch (e) {}
+            }
+            const canvas = document.getElementById(canvasId);
+            if (canvas && typeof canvas.toDataURL === 'function') {
+                return canvas.toDataURL('image/png');
+            }
+            return '';
+        };
+
+        const addChart = function (title, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const imgData = chartImageById(canvasId);
+            const maxW = pageW - margin * 2;
+            const ratio = canvas.height > 0 ? (canvas.width / canvas.height) : 1.8;
+            const drawW = maxW;
+            const drawH = Math.max(45, Math.min(90, drawW / ratio));
+            ensureSpace(10 + drawH + 6);
+            line(title, 11, [73, 80, 87]);
+            if (!imgData || /^data:,\s*$/.test(imgData)) {
+                line('No chart image available.', 9, [120, 120, 120]);
+                addSectionGap(2);
+                return;
+            }
+            doc.addImage(imgData, 'PNG', margin, y + 1.5, drawW, drawH, undefined, 'FAST');
+            y += drawH + 8;
+        };
+
+        const regionLabel = selectedText('analytics-region', 'All Regions');
+        const filterLabel = selectedText('analytics-filter', 'All Time');
+        const monthLabel = selectedText('analytics-month', 'Month');
+        const yearLabel = selectedText('analytics-year', 'Year');
+        const dateFrom = inputValue('analytics-date-from', '');
+        const dateTo = inputValue('analytics-date-to', '');
+
+        doc.setFontSize(16);
+        doc.setTextColor(17, 24, 39);
+        doc.text('SATC Repair Ticket Analytics', margin, y);
+        y += 8;
+
+        line('Generated: ' + new Date().toLocaleString(), 10, [107, 114, 128]);
+        line('Region: ' + regionLabel, 10, [107, 114, 128]);
+        line('Date Filter: ' + filterLabel, 10, [107, 114, 128]);
+        if (filterLabel.toLowerCase().includes('month') || monthLabel !== 'Month' || yearLabel !== 'Year') {
+            line('Month/Year: ' + monthLabel + ' ' + yearLabel, 10, [107, 114, 128]);
+        }
+        if (dateFrom || dateTo) {
+            line('Custom Range: ' + (dateFrom || '-') + ' to ' + (dateTo || '-'), 10, [107, 114, 128]);
+        }
+
+        addSectionGap(2);
+        doc.setDrawColor(229, 231, 235);
+        doc.line(margin, y, pageW - margin, y);
+        addSectionGap(6);
+
+        line('KPI Summary', 12, [17, 24, 39]);
+        line('Total Logged: ' + safeText('stat-total-analytics', '--'), 10);
+        line('Completion Rate: ' + safeText('stat-completion-rate', '--%'), 10);
+        line('Pending Rate: ' + safeText('stat-pending-rate', '--%'), 10);
+        line('Avg. Repair Time: ' + safeText('stat-avg-time', '-- Days'), 10);
+
+        addSectionGap(4);
+        addChart('Repair Volume Trends', 'trendChart');
+        addChart('Team Workload', 'teamWorkloadChart');
+        addChart('Completed vs Pending', 'completionPendingChart');
+
+        const issuesList = document.querySelectorAll('#top-issues-list .top-issues-item');
+        if (issuesList && issuesList.length > 0) {
+            ensureSpace(20);
+            line('Top Issues', 12, [17, 24, 39]);
+            issuesList.forEach(function (item, idx) {
+                const labelEl = item.querySelector('.top-issues-item-label');
+                const countEl = item.querySelector('.top-issues-item-count');
+                const label = labelEl ? String(labelEl.textContent || '').trim() : 'Issue';
+                const count = countEl ? String(countEl.textContent || '').trim() : '0';
+                ensureSpace(7);
+                line((idx + 1) + '. ' + label + ' - ' + count, 10, [55, 65, 81]);
+            });
+        }
+
+        const stamp = new Date().toISOString().slice(0, 10);
+        doc.save('satc-analytics-report-' + stamp + '.pdf');
+        showToast('Analytics exported to PDF.', 'success');
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to export analytics PDF.', 'error');
+    } finally {
+        if (exportBtn) {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = '<i class="fas fa-file-pdf me-1"></i> Export PDF';
+        }
+    }
 }
 
 function toggleMonthYearDropdowns() {
@@ -1766,6 +2023,10 @@ function parseDateSafe(dateStr) {
 }
 
 function updateAnalytics(isRefresh = false) {
+    const __debugRunId = 'analytics-region-' + Date.now();
+    // #region agent log
+    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H1',location:'assets/js/app.js:updateAnalytics:start',message:'updateAnalytics entered',data:{isRefresh:isRefresh,allTicketsCount:Array.isArray(allTickets)?allTickets.length:-1,activeTab:activeTab},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const filter = document.getElementById('analytics-filter').value;
     let filtered = allTickets;
     const now = new Date();
@@ -1835,10 +2096,16 @@ function updateAnalytics(isRefresh = false) {
             });
         }
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H2',location:'assets/js/app.js:updateAnalytics:afterDateFilter',message:'date filter applied',data:{filter:filter,countAfterDate:Array.isArray(filtered)?filtered.length:-1},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Filter by region (works with all date options including custom range)
     const analyticsRegionEl = document.getElementById('analytics-region');
     const analyticsRegionVal = (analyticsRegionEl && analyticsRegionEl.value) ? String(analyticsRegionEl.value).trim() : '';
+    // #region agent log
+    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H3',location:'assets/js/app.js:updateAnalytics:regionSelection',message:'region selection state',data:{analyticsRegionVal:analyticsRegionVal,hasRegionElement:!!analyticsRegionEl},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (analyticsRegionVal) {
         const REGION_DEFS_ANALYTICS = {
             bukidnon: { type: 'city', areas: [{ key: 'VALENCIA' }, { key: 'MALAYBALAY' }, { key: 'MARAMAG' }, { key: 'QUEZON' }, { key: 'DON CARLOS' }, { key: 'MANOLO FORTICH' }, { key: 'IMPASUGONG' }, { key: 'SAN FERNANDO' }] },
@@ -1850,16 +2117,22 @@ function updateAnalytics(isRefresh = false) {
             misamis_oriental: { type: 'city', areas: [{ key: 'TAGOLOAN' }, { key: 'VILLANUEVA' }, { key: 'BALINGASAG' }, { key: 'GINGOOG' }, { key: 'JASAAN' }, { key: 'CLAVERIA' }] }
         };
         const regionDef = REGION_DEFS_ANALYTICS[analyticsRegionVal];
+        // #region agent log
+        fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H4',location:'assets/js/app.js:updateAnalytics:regionDef',message:'region definition lookup',data:{hasRegionDef:!!regionDef,regionType:regionDef?regionDef.type:'none',areasCount:regionDef&&Array.isArray(regionDef.areas)?regionDef.areas.length:0,sampleTicketShape:(Array.isArray(filtered)&&filtered[0])?{hasCity:Object.prototype.hasOwnProperty.call(filtered[0],'city'),hasMunicipality:Object.prototype.hasOwnProperty.call(filtered[0],'municipality'),hasRiskLevelSource:Object.prototype.hasOwnProperty.call(filtered[0],'risk_level_source'),hasCluster:Object.prototype.hasOwnProperty.call(filtered[0],'cluster')}:null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (regionDef) {
             filtered = filtered.filter(t => {
-                const cityUpper = String(t.city || '').toUpperCase();
-                const clusterUpper = String(t.risk_level_source || '').toUpperCase();
+                const cityUpper = ticketCitySource(t).toUpperCase();
+                const clusterUpper = ticketClusterSource(t).toUpperCase();
                 return regionDef.areas.some(a => {
                     if (regionDef.type === 'city') return cityUpper.indexOf(a.key) !== -1;
                     if (regionDef.type === 'cluster') return clusterUpper.indexOf(a.key) !== -1;
                     return false;
                 });
             });
+            // #region agent log
+            fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H5',location:'assets/js/app.js:updateAnalytics:afterRegionFilter',message:'region filter applied',data:{analyticsRegionVal:analyticsRegionVal,countAfterRegion:Array.isArray(filtered)?filtered.length:-1},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
         }
     }
 
@@ -2479,28 +2752,16 @@ const MAX_VIBER_TICKETS = 5;
 
 function handleTicketCheckboxChange(checkbox) {
     try {
-        const tbody = document.getElementById('tickets-table-body');
-        if (!tbody) {
-            updateExportButton();
-            return;
-        }
-        const allBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox');
-        const totalBoxes = allBoxes.length;
-        const checkedList = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked');
-        const uniqueCheckedIds = new Set(Array.from(checkedList).map(cb => cb.value));
-        const checkedIds = Array.from(uniqueCheckedIds);
-        const uncheckedCount = totalBoxes - checkedList.length;
-        const thisTicketId = checkbox.value;
-        const isThisInChecked = uniqueCheckedIds.has(thisTicketId);
-
-        if (!checkbox.checked) {
-            updateExportButton();
-            return;
-        }
-        const uniqueCount = uniqueCheckedIds.size;
-        if (uniqueCount > MAX_VIBER_TICKETS) {
-            checkbox.checked = false;
-            showToast('Only up to 5 tickets can be copied for Viber.', 'error');
+        const id = checkbox.value;
+        if (checkbox.checked) {
+            selectedTicketIds.add(id);
+            if (selectedTicketIds.size > MAX_VIBER_TICKETS) {
+                selectedTicketIds.delete(id);
+                checkbox.checked = false;
+                showToast('Only up to 5 tickets can be copied for Viber.', 'error');
+            }
+        } else {
+            selectedTicketIds.delete(id);
         }
         updateExportButton();
     } catch (e) {
@@ -2512,13 +2773,8 @@ function updateExportButton() {
     try {
         const tbody = document.getElementById('tickets-table-body');
         if (!tbody) return;
-        const allBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox');
-        const checkedBoxes = tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked');
-        const totalBoxes = allBoxes.length;
-        selectedTicketIds.clear();
-        checkedBoxes.forEach(cb => selectedTicketIds.add(cb.value));
+        saveCheckboxStates();
         const uniqueCount = selectedTicketIds.size;
-        const selectedIds = [...selectedTicketIds];
 
         const viberBtn = document.getElementById('viber-export-btn');
         const clearBtn = document.getElementById('clear-selection-btn');
@@ -2634,21 +2890,20 @@ function sendCurrentTicketViaViber() {
 
 function sendSelectedTicketsViaViber() {
     try {
+        saveCheckboxStates();
         const tbody = document.getElementById('tickets-table-body');
-        const checkboxes = tbody ? tbody.querySelectorAll('input[type="checkbox"].ticket-checkbox:checked') : [];
-        if (checkboxes.length === 0) {
+        if (selectedTicketIds.size === 0) {
             showToast('Please select at least one ticket', 'error');
             return;
         }
-        if (checkboxes.length > MAX_VIBER_TICKETS) {
+        if (selectedTicketIds.size > MAX_VIBER_TICKETS) {
             showToast('Only up to 5 tickets can be copied for Viber.', 'error');
             return;
         }
 
-        // Build list from checked checkboxes only (one ticket per checkbox) so count always matches.
-        const selectedTickets = Array.from(checkboxes).map(cb => {
-            return allTickets.find(t => String(t.ticket_id) === cb.value);
-        }).filter(Boolean);
+        const selectedTickets = [...selectedTicketIds].map(id =>
+            (typeof allTickets !== 'undefined' && allTickets ? allTickets : ticketsViewList).find(t => String(t.ticket_id) === id)
+        ).filter(Boolean);
 
         const count = selectedTickets.length;
 

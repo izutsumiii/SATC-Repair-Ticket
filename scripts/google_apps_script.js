@@ -4,11 +4,20 @@
  * Google Sheets does NOT load this file automatically. Paste it into the Apps Script
  * editor bound to your spreadsheet, then Deploy > Manage deployments > New version > Deploy.
  * Update the web app URL in assets/js/app.js (GAS_URL) if Google gives you a new URL.
+ *
+ * WRITES GO TO ONE SPREADSHEET ONLY:
+ * - If SPREADSHEET_ID is set (see below), that file is used (openById). Use this when the web app
+ *   must match your "master" sheet but the script project is not container-bound to it.
+ * - If SPREADSHEET_ID is empty, getActiveSpreadsheet() is used — only correct for a script opened
+ *   from Extensions → Apps Script ON that same spreadsheet.
  */
 // SCRIPT CONFIGURATION
 // REPAIR sheet: DESCRIPTION and ISSUE are separate columns (mapped via COLUMN_MAP). Do not combine fixed indices — old K was STATUS on newer layouts.
 // Status: only from the column whose header maps to STATUS (or regex). Never use a fixed column index for status — CLUSTER may sit nearby.
 const CONFIG = {
+  // Paste your master Sheet ID from the browser URL: .../spreadsheets/d/THIS_PART/edit
+  // Leave '' to use the spreadsheet the script is bound to (getActiveSpreadsheet).
+  SPREADSHEET_ID: '',
   SHEET_NAME: "REPAIR",
   TICKET_PREFIX: "S2SREPAIR-",
   TICKET_PAD: 5,
@@ -27,8 +36,12 @@ const CONFIG = {
     "ACCOUNT NUMBER": "account_number",
     "ACCOUNT NO": "account_number",
     "DATE REP": "date_created",
+    "DATE RECEIVED": "date_created",
     "DATE REPORTED": "date_created",
     "ACCOUNT NAME": "customer_name",
+    "TECHNICIAN": "technician",
+    "ASSIGNED TECHNICIAN": "technician",
+    "DATE STARTED": "date_started",
     "DESCRIPTION": "description",
     "ISSUE": "issue",
     "STATUS": "status",
@@ -70,6 +83,7 @@ const CONFIG = {
 };
 
 function doGet(e) {
+  // Web clients should call with a unique query string (_cb=timestamp) on /exec; identical URLs may be cached.
   // When you "Run" doGet from the editor, e is undefined (no HTTP request). Web app calls pass e.parameter.
   e = e || {};
   var param = e.parameter || {};
@@ -92,25 +106,42 @@ function doGet(e) {
 
 function doPost(e) {
   let result = {};
-  
+  // Uncomment for debugging POST body size from the website (View → Executions → select run → Logs):
+  // Logger.log('doPost body length', e && e.postData && e.postData.contents != null ? e.postData.contents.length : 0);
+
   try {
     if (!e || !e.postData || e.postData.contents === undefined || e.postData.contents === null) {
       result = { error: 'No POST body (doPost must be called by the web app or a client with JSON body, not Run from the editor).' };
       return ContentService.createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    const postData = JSON.parse(e.postData.contents);
-
-    // New ticket (isNewTicket === true): always append a row; JO number is manually entered.
-    // Edit (isNewTicket === false and ticket_id present): find row by JO number and update.
-    if (postData.isNewTicket === true) {
-      result = createData(postData);
-    } else if (postData.ticket_id) {
-      result = updateData(postData);
-    } else {
-      result = createData(postData);
+    var raw = String(e.postData.contents).trim();
+    if (!raw) {
+      result = { error: 'Empty POST body.' };
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-    
+    var postData = JSON.parse(raw);
+
+    // Read via POST — same data as doGet, but POST is not subject to the same /exec GET caching
+    // that can hide rows immediately after appendRow (see app.js fetchGasTickets).
+    if (postData.action === 'read') {
+      result = readData();
+    } else {
+      // Prefer explicit action from the website (avoids strict === true on isNewTicket after JSON quirks).
+      var isCreate =
+        postData.action === 'create' ||
+        postData.isNewTicket === true ||
+        postData.isNewTicket === 'true' ||
+        postData.isNewTicket === 1;
+      if (isCreate) {
+        result = createData(postData);
+      } else if (postData.action === 'update' || postData.ticket_id) {
+        result = updateData(postData);
+      } else {
+        result = createData(postData);
+      }
+    }
   } catch (err) {
     result = { error: err.toString() };
   }
@@ -121,8 +152,28 @@ function doPost(e) {
 
 // --- CORE FUNCTIONS ---
 
+function getSpreadsheet() {
+  var id = CONFIG.SPREADSHEET_ID != null ? String(CONFIG.SPREADSHEET_ID).trim() : '';
+  if (id) {
+    return SpreadsheetApp.openById(id);
+  }
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      throw new Error('getActiveSpreadsheet() returned null.');
+    }
+    return ss;
+  } catch (err) {
+    throw new Error(
+      'Cannot open spreadsheet: deploy this script from the master file (Extensions → Apps Script on that sheet) ' +
+        'or set CONFIG.SPREADSHEET_ID in the script to your Sheet ID from the URL (.../d/SHEET_ID/edit). ' +
+        String(err.message || err)
+    );
+  }
+}
+
 function getSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error("Sheet '" + CONFIG.SHEET_NAME + "' not found.");
   return sheet;
@@ -151,7 +202,8 @@ function getNextTicketIdFormFromSheet(sheet, headers) {
   var re = new RegExp('^' + CONFIG.TICKET_PREFIX + '(\\d+)$', 'i');
 
   if (ticketCol >= 0 && sheet.getLastRow() > 1) {
-    var vals = sheet.getRange(2, ticketCol + 1, sheet.getLastRow() - 1, 1).getValues();
+    // Include last data row (was getLastRow()-1, which skipped the bottom row and could duplicate IDs)
+    var vals = sheet.getRange(2, ticketCol + 1, sheet.getLastRow(), 1).getValues();
     for (var i = 0; i < vals.length; i++) {
       var t = String(vals[i][0] == null ? '' : vals[i][0]).trim();
       var m = t.match(re);
@@ -326,7 +378,24 @@ function readData() {
       }
     }
   }
-  
+
+  // Direct JO column index (fallback if header did not map via reverseMap)
+  var joColIndex = getColumnIndexByProperty(headers, 'ticket_id', map, normalizedMap);
+  if (joColIndex < 0) {
+    for (var jci = 0; jci < headers.length; jci++) {
+      var jh = normalizeSheetHeader(headers[jci]).toUpperCase();
+      if (jh === 'JO NUMBER' || jh === 'JO' || jh === 'JO NO' || jh === 'JO NO.' || jh === 'JO#') {
+        joColIndex = jci;
+        break;
+      }
+      // e.g. "JO #123" but not "JOURNAL" (starts with JO but not a word boundary after JO)
+      if (/^JO\b/.test(jh) && jh.indexOf('TICKET') === -1 && jh.indexOf('FORM') === -1) {
+        joColIndex = jci;
+        break;
+      }
+    }
+  }
+
   rows.forEach(row => {
     let obj = {};
     row.forEach((cell, i) => {
@@ -354,6 +423,10 @@ function readData() {
         obj[prop] = val;
       }
     });
+
+    if ((!obj.ticket_id || String(obj.ticket_id).trim() === '') && joColIndex >= 0 && row[joColIndex] != null && String(row[joColIndex]).trim() !== '') {
+      obj.ticket_id = String(row[joColIndex]).trim();
+    }
 
     if (obj.description === undefined) obj.description = '';
     else obj.description = String(obj.description).trim();
@@ -428,6 +501,16 @@ function rowValueForKey(key, data, map) {
     if (data.issue !== undefined && data.issue !== '') return data.issue;
     return data.description !== undefined ? data.description : '';
   }
+  // Column A is often labeled "Timestamp" but holds S2SREPAIR-##### (maps to submission_timestamp in COLUMN_MAP).
+  if (key === 'submission_timestamp') {
+    if (data.ticket_id_form !== undefined && String(data.ticket_id_form).trim() !== '') {
+      return data.ticket_id_form;
+    }
+    return data.submission_timestamp !== undefined ? data.submission_timestamp : '';
+  }
+  if (key === 'ticket_id_form') {
+    return data.ticket_id_form !== undefined ? data.ticket_id_form : '';
+  }
   if (key && data[key] !== undefined) {
     return data[key];
   }
@@ -481,7 +564,11 @@ function createData(data) {
       }
     }
 
-    sheet.appendRow(row);
+    try {
+      sheet.appendRow(row);
+    } catch (appendErr) {
+      return { error: 'Could not append row to sheet (check data validation / dropdown rules): ' + String(appendErr.message || appendErr) };
+    }
     return { success: true, ticket_id: data.ticket_id, ticket_id_form: data.ticket_id_form };
   } finally {
     lock.releaseLock();
