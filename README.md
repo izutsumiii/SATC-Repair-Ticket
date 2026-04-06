@@ -55,8 +55,11 @@ For the rest (Google Sheets, roles, security), see the docs below.
 
 - **End users:** See [docs/USER_MANUAL.md](docs/USER_MANUAL.md) for first-time login, dashboard, tickets, and forgot password.
 - **Admin / System Administrator:** See [docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md) for install, Google Sheets, mail (SMTP), user management, and security.
+- **Internet deployment / security hardening:** See [docs/SECURITY_HARDENING_PLAN.md](docs/SECURITY_HARDENING_PLAN.md) for phased checklist (secrets, sessions, CSRF, GAS, CSV).
+- **Security implementation (agents & developers):** See [docs/SECURITY_IMPLEMENTATION_RUNBOOK.md](docs/SECURITY_IMPLEMENTATION_RUNBOOK.md) for step-by-step execution, acceptance tests, and rollback — use this when implementing hardening without breaking the app.
+- **Authorized penetration / smoke testing:** See [scripts/pentest/README.md](scripts/pentest/README.md) for rules of engagement, manual checklist, curl examples, and `smoke-auth` scripts (staging or localhost only).
 
-**Folder layout:** `api/` (backend), `assets/` (css, js), `data/` (users DB, tokens), `docs/` (User Manual and Admin Setup), `scripts/` (Google Apps Script code: copy from `scripts/google_apps_script.js` into GAS), `vendor/` (Composer dependencies — do not edit).
+**Folder layout:** `api/` (backend), `assets/` (css, js), `data/` (users DB, tokens), `docs/` (User Manual and Admin Setup), `scripts/` (Google Apps Script in `google_apps_script.js`; optional `pentest/` helpers), `vendor/` (Composer dependencies — do not edit).
 
 ---
 

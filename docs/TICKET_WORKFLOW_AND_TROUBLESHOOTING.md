@@ -170,7 +170,20 @@ If the response is `{ error: "..." }` or HTML, the table shows an error or fails
 
 ### 7.4 Sorting and pagination
 
-Tickets may be **sorted** (e.g. by ticket number / date) and **paginated** in the UI. A new ticket might be on **page 1** or a **later page** depending on sort keys and whether `ticket_id_form` is present in the data.
+Tickets are **sorted** in the browser (e.g. newest first) and shown **page by page** on the Tickets tab (`assets/js/app.js`: `TICKETS_PAGE_SIZE`, `ticketsViewPage`, `renderTicketsTable` / `renderTicketsTablePage`).
+
+- A **new ticket** might appear on **page 1** or a **later page** depending on sort order and how many rows match the current filters.
+- **Changing search or filters** resets to **page 1** (expected).
+- **Sorting** a column resets to **page 1** (expected).
+
+### 7.5 Auto-refresh and `gas_proxy.php` (why you see repeated requests)
+
+While the Tickets tab is active, the app **refreshes** ticket data on a timer (`REFRESH_RATE` in `app.js`; longer interval in GAS mode than in local CSV mode). Each refresh calls **`loadTickets(true)`**, which re-applies filters and re-renders the table.
+
+- You will see repeated requests to **`api/gas_proxy.php`** (often with `?_cb=<timestamp>` for cache busting). That is the **normal read path** through the proxy to Google, not a bug by itself.
+- **Behavior (current app):** On that silent refresh, the list **stays on the same page** you were viewing (with clamping if the filtered row count shrinks). It does **not** jump back to page 1 unless you change filters/search/sort or do a full reload that clears state.
+
+If something still looks wrong (blank slice, wrong page), check Network for **401/HTML** (session), or JSON errors from the proxy/GAS.
 
 ---
 
@@ -182,6 +195,8 @@ Tickets may be **sorted** (e.g. by ticket number / date) and **paginated** in th
 | New row **in Sheet**, not in app | `readData` omits row (JO not mapped to `ticket_id`), wrong deployment URL, or read returns error/stale data. |
 | Network errors / non-JSON | Session expired (proxy returns HTML), wrong `gas_webapp_url`, PHP/cURL issue. |
 | Old behavior after code change | Apps Script **not redeployed** (need **New version** on the deployment). |
+| Tickets list **jumps to page 1** after refresh | If you are on an **old build**: re-rendering after `loadTickets(true)` used to reset the page; **current code** preserves the page on silent refresh. If it still happens, hard-refresh the browser cache or confirm `filterTickets(true)` / `preservePage` path in `app.js`. Changing filters always resets to page 1. |
+| Many **`gas_proxy.php`** calls in Network | Expected while the Tickets tab auto-refreshes; see **§7.5**. |
 
 ---
 
@@ -206,7 +221,7 @@ Tickets may be **sorted** (e.g. by ticket number / date) and **paginated** in th
 
 ## 10. Summary (one paragraph)
 
-You click **New Ticket**, fill the form, and the app **`POST`s JSON** (as `text/plain`) to **`api/gas_proxy.php`**, which forwards to your **Apps Script `/exec`** URL. **`doPost`** runs **`createData`**, which **`appendRow`s** into the configured **spreadsheet** and **tab**. To see tickets in the app, a second request sends **`action: 'read'`**, which runs **`readData()`** and returns an **array** the UI renders. Anything wrong — **login**, **URL**, **deployment**, **wrong sheet/tab**, **duplicate JO**, **header mapping**, or **non-JSON responses** — can make it look like nothing was created or nothing “reflects,” even when part of the pipeline worked.
+You click **New Ticket**, fill the form, and the app **`POST`s JSON** (as `text/plain`) to **`api/gas_proxy.php`**, which forwards to your **Apps Script `/exec`** URL. **`doPost`** runs **`createData`**, which **`appendRow`s** into the configured **spreadsheet** and **tab**. To see tickets in the app, a second request sends **`action: 'read'`**, which runs **`readData()`** and returns an **array** the UI renders. The Tickets tab **auto-refreshes** on a timer (via the same proxy), which is why **`gas_proxy.php`** appears often in DevTools; pagination is designed to **stay on your current page** during that refresh unless you change filters. Anything wrong — **login**, **URL**, **deployment**, **wrong sheet/tab**, **duplicate JO**, **header mapping**, or **non-JSON responses** — can make it look like nothing was created or nothing “reflects,” even when part of the pipeline worked.
 
 ---
 
