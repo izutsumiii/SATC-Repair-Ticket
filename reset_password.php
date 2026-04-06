@@ -10,13 +10,6 @@ if (isLoggedIn()) {
 
 $dataDir  = __DIR__ . DIRECTORY_SEPARATOR . 'data';
 $tokensFile = $dataDir . DIRECTORY_SEPARATOR . 'password_reset_tokens.json';
-// #region agent log
-$debugLogPath = __DIR__ . DIRECTORY_SEPARATOR . 'debug-63ea2c.log';
-function debugLogReset($path, $location, $message, $data, $hypothesisId) {
-    $payload = ['sessionId' => '63ea2c', 'location' => $location, 'messagxe' => $message, 'data' => $data, 'hypothesisId' => $hypothesisId, 'timestamp' => time()];
-    @file_put_contents($path, json_encode($payload) . "\n", FILE_APPEND | LOCK_EX);
-}
-// #endregion
 
 function loadTokens($tokensFile) {
     if (!is_file($tokensFile)) return [];
@@ -42,52 +35,16 @@ $isError = false;
 $validToken = false;
 $username = null;
 
-// #region agent log
-debugLogReset($debugLogPath, 'reset_password.php:request', 'token from request', [
-    'tokensFilePath' => $tokensFile,
-    'dataDirPath' => $dataDir,
-    'fileExists' => is_file($tokensFile),
-    'tokenLength' => strlen($token),
-    'tokenPrefix' => $token !== '' ? substr($token, 0, 6) : '',
-    'tokenSuffix' => $token !== '' && strlen($token) >= 6 ? substr($token, -6) : '',
-    'rawGetToken' => isset($_GET['token']) ? 'set(len=' . strlen(trim($_GET['token'] ?? '')) . ')' : 'unset',
-], 'A');
-// #endregion
-
 if ($token !== '') {
     $tokens = loadTokens($tokensFile);
-    // #region agent log
-    $tokenKeys = is_array($tokens) ? array_keys($tokens) : [];
-    debugLogReset($debugLogPath, 'reset_password.php:load', 'after loadTokens', [
-        'tokensKeyCount' => count($tokenKeys),
-        'tokenFound' => isset($tokens[$token]),
-        'firstStoredKeyPrefix' => count($tokenKeys) ? substr((string)reset($tokenKeys), 0, 6) : null,
-        'timeNow' => time(),
-    ], 'B');
-    // #endregion
     if (isset($tokens[$token])) {
         $entry = $tokens[$token];
         $now = time();
         $expiresOk = isset($entry['expires']) && $entry['expires'] >= $now;
-        // #region agent log
-        debugLogReset($debugLogPath, 'reset_password.php:expiry', 'expiry check', [
-            'expires' => $entry['expires'] ?? null,
-            'timeNow' => $now,
-            'expiresOk' => $expiresOk,
-            'expiresType' => isset($entry['expires']) ? gettype($entry['expires']) : 'missing',
-        ], 'C');
-        // #endregion
         if ($expiresOk) {
             $validToken = true;
             $username = $entry['username'];
         }
-    } else {
-        // #region agent log
-        debugLogReset($debugLogPath, 'reset_password.php:not_found', 'token not in tokens', [
-            'sampleStoredKeys' => array_slice($tokenKeys, 0, 3),
-            'requestTokenLen' => strlen($token),
-        ], 'E');
-        // #endregion
     }
 }
 

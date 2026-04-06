@@ -21,35 +21,7 @@
 
     window.generateTicketReceiptPdf = function (ticket) {
         if (!ticket) return;
-        
-        // #region agent log - receipt uses location-field keys
-        try {
-            fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Debug-Session-Id': '7b9856'
-                },
-                body: JSON.stringify({
-                    sessionId: '7b9856',
-                    location: 'assets/js/receipt-pdf.js:generateTicketReceiptPdf',
-                    message: 'Receipt generator received location fields',
-                    hypothesisId: 'H3_pdf_binding',
-                    data: {
-                        ticket_id: ticket.ticket_id,
-                        ticket_id_form: ticket.ticket_id_form,
-                        cluster: ticket.cluster,
-                        municipality: ticket.municipality,
-                        longlat: ticket.longlat,
-                        latitude: ticket.latitude,
-                        longitude: ticket.longitude
-                    },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        } catch (e) {}
-        // #endregion
-        
+
         var jspdf = window.jspdf;
         if (!jspdf || !jspdf.jsPDF) {
             console.error('jsPDF not loaded');

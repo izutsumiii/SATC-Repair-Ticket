@@ -45,20 +45,17 @@ This creates the `vendor/` folder and installs PHPMailer. **Do not edit files in
 ### 4. One-time app setup
 
 - **Users database:** Open **setup_users.php** in the browser once (e.g. `http://localhost/SATC%20REPAIR%20TICKET/setup_users.php`) to create the users DB and optional test accounts.
-- **Mail (password reset / new user emails):** Copy `api/mail_config.php.example` to `api/mail_config.php` and set your SMTP credentials (see [docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md)).
+- **Mail (password reset / new user emails):** Create `api/mail_config.php` with your SMTP settings (template and Gmail/env instructions are in [docs/SATC_GUIDE.md](docs/SATC_GUIDE.md) — Section B.4).
 
-For the rest (Google Sheets, roles, security), see the docs below.
+For the rest (Google Sheets, roles, security, workflow, testing), see the guide below.
 
 ---
 
 ## Documentation
 
-- **End users:** See [docs/USER_MANUAL.md](docs/USER_MANUAL.md) for first-time login, dashboard, tickets, and forgot password.
-- **Admin / System Administrator:** See [docs/ADMIN_SETUP.md](docs/ADMIN_SETUP.md) for install, Google Sheets, mail (SMTP), user management, and security.
-- **Security, operations, email (SMTP), and hardening execution:** See [docs/SECURITY_AND_OPERATIONS_PLAYBOOK.md](docs/SECURITY_AND_OPERATIONS_PLAYBOOK.md) — single source for risks, phases, login tightening, PHPMailer/SMTP, and agent run templates.
-- **Authorized penetration / smoke testing:** See [scripts/pentest/README.md](scripts/pentest/README.md) for rules of engagement, manual checklist, curl examples, and `smoke-auth` scripts (staging or localhost only).
+**[docs/SATC_GUIDE.md](docs/SATC_GUIDE.md)** — single file with sections: **user manual**, **admin setup** (install, GAS, mail/SMTP, users), **security and operations**, **ticket/GAS workflow and troubleshooting**, and **authorized pentest / smoke tests** (see `scripts/pentest/` for `smoke-auth` scripts).
 
-**Folder layout:** `api/` (backend), `assets/` (css, js), `data/` (users DB, tokens), `docs/` (User Manual and Admin Setup), `scripts/` (Google Apps Script in `google_apps_script.js`; optional `pentest/` helpers), `vendor/` (Composer dependencies — do not edit).
+**Folder layout:** `api/` (backend), `assets/` (css, js), `data/` (users DB, tokens), `docs/` (this guide), `scripts/` (Google Apps Script in `google_apps_script.js`; optional `pentest/` helpers), `vendor/` (Composer dependencies — do not edit).
 
 ---
 

@@ -8,6 +8,14 @@ let completionPendingChart = null;
 let activeTab = 'dashboard'; // Track active tab
 let refreshInterval = null;  // Handle for the interval
 
+/** Shorten long SMTP/API messages in admin toasts (e.g. email_error from api/users.php). */
+function truncateToastMessage(msg, maxLen) {
+    if (msg == null || typeof msg !== 'string') return '';
+    const m = msg.trim();
+    if (m.length <= maxLen) return m;
+    return m.slice(0, Math.max(0, maxLen - 1)) + '…';
+}
+
 // Sidebar toggle function
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
@@ -229,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.email_sent) {
                         showToast('User created. Login details have been sent to their email.', 'success');
                     } else {
-                        showToast((data.email_error || 'User created. Email could not be sent; send credentials manually.'), 'info');
+                        showToast(truncateToastMessage(data.email_error || 'User created. Email could not be sent; send credentials manually.', 280), 'info');
                     }
                     addUserForm.reset();
                     bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
@@ -2029,10 +2037,6 @@ function parseDateSafe(dateStr) {
 }
 
 function updateAnalytics(isRefresh = false) {
-    const __debugRunId = 'analytics-region-' + Date.now();
-    // #region agent log
-    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H1',location:'assets/js/app.js:updateAnalytics:start',message:'updateAnalytics entered',data:{isRefresh:isRefresh,allTicketsCount:Array.isArray(allTickets)?allTickets.length:-1,activeTab:activeTab},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const filter = document.getElementById('analytics-filter').value;
     let filtered = allTickets;
     const now = new Date();
@@ -2102,16 +2106,10 @@ function updateAnalytics(isRefresh = false) {
             });
         }
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H2',location:'assets/js/app.js:updateAnalytics:afterDateFilter',message:'date filter applied',data:{filter:filter,countAfterDate:Array.isArray(filtered)?filtered.length:-1},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // Filter by region (works with all date options including custom range)
     const analyticsRegionEl = document.getElementById('analytics-region');
     const analyticsRegionVal = (analyticsRegionEl && analyticsRegionEl.value) ? String(analyticsRegionEl.value).trim() : '';
-    // #region agent log
-    fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H3',location:'assets/js/app.js:updateAnalytics:regionSelection',message:'region selection state',data:{analyticsRegionVal:analyticsRegionVal,hasRegionElement:!!analyticsRegionEl},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (analyticsRegionVal) {
         const REGION_DEFS_ANALYTICS = {
             bukidnon: { type: 'city', areas: [{ key: 'VALENCIA' }, { key: 'MALAYBALAY' }, { key: 'MARAMAG' }, { key: 'QUEZON' }, { key: 'DON CARLOS' }, { key: 'MANOLO FORTICH' }, { key: 'IMPASUGONG' }, { key: 'SAN FERNANDO' }] },
@@ -2123,9 +2121,6 @@ function updateAnalytics(isRefresh = false) {
             misamis_oriental: { type: 'city', areas: [{ key: 'TAGOLOAN' }, { key: 'VILLANUEVA' }, { key: 'BALINGASAG' }, { key: 'GINGOOG' }, { key: 'JASAAN' }, { key: 'CLAVERIA' }] }
         };
         const regionDef = REGION_DEFS_ANALYTICS[analyticsRegionVal];
-        // #region agent log
-        fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H4',location:'assets/js/app.js:updateAnalytics:regionDef',message:'region definition lookup',data:{hasRegionDef:!!regionDef,regionType:regionDef?regionDef.type:'none',areasCount:regionDef&&Array.isArray(regionDef.areas)?regionDef.areas.length:0,sampleTicketShape:(Array.isArray(filtered)&&filtered[0])?{hasCity:Object.prototype.hasOwnProperty.call(filtered[0],'city'),hasMunicipality:Object.prototype.hasOwnProperty.call(filtered[0],'municipality'),hasRiskLevelSource:Object.prototype.hasOwnProperty.call(filtered[0],'risk_level_source'),hasCluster:Object.prototype.hasOwnProperty.call(filtered[0],'cluster')}:null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (regionDef) {
             filtered = filtered.filter(t => {
                 const cityUpper = ticketCitySource(t).toUpperCase();
@@ -2136,9 +2131,6 @@ function updateAnalytics(isRefresh = false) {
                     return false;
                 });
             });
-            // #region agent log
-            fetch('http://127.0.0.1:7607/ingest/b3bba1b6-94ec-4a1d-9a60-edd9561a01ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'90c739'},body:JSON.stringify({sessionId:'90c739',runId:__debugRunId,hypothesisId:'H5',location:'assets/js/app.js:updateAnalytics:afterRegionFilter',message:'region filter applied',data:{analyticsRegionVal:analyticsRegionVal,countAfterRegion:Array.isArray(filtered)?filtered.length:-1},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
         }
     }
 
@@ -2511,7 +2503,7 @@ document.body.addEventListener('click', async function(e) {
             const r = await fetch('api/users.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resend', username }) });
             const data = await r.json().catch(() => ({}));
             if (r.ok && data.success) {
-                showToast(data.email_sent ? 'New login details sent to user\'s email.' : (data.email_error || 'Email could not be sent; share credentials manually.'), data.email_sent ? 'success' : 'info');
+                showToast(data.email_sent ? 'New login details sent to user\'s email.' : truncateToastMessage(data.email_error || 'Email could not be sent; share credentials manually.', 280), data.email_sent ? 'success' : 'info');
             } else {
                 showToast(data.error || 'Failed to resend.', 'error');
             }

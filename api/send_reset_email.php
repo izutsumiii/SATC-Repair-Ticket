@@ -1,19 +1,18 @@
 <?php
 /**
  * Send password-reset email via Gmail SMTP (PHPMailer).
- * Requires: composer require phpmailer/phpmailer, and api/mail_config.php from mail_config.php.example.
+ * Requires: composer require phpmailer/phpmailer, and SMTP settings via api/mail_config.php and/or SATC_SMTP_* env vars (see docs/SATC_GUIDE.md Section B.4).
  */
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'mail_config_loader.php';
 
 /**
- * Return the full login URL for use in emails. Uses mail_config base_url if set, else auto-detects.
+ * Return the full login URL for use in emails. Uses merged mail config base_url if set, else auto-detects.
  */
 function getMailLoginUrl() {
-    $configPath = __DIR__ . DIRECTORY_SEPARATOR . 'mail_config.php';
-    if (is_file($configPath)) {
-        $config = require $configPath;
-        if (!empty($config['base_url'])) {
-            return rtrim($config['base_url'], '/') . '/login.php';
-        }
+    $config = satc_load_mail_config();
+    $base = isset($config['base_url']) ? trim((string) $config['base_url']) : '';
+    if ($base !== '') {
+        return rtrim($base, '/') . '/login.php';
     }
     $proto = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -29,19 +28,14 @@ function getMailLoginUrl() {
  * @return array{ sent: bool, error: string }
  */
 function sendPasswordResetEmail($toEmail, $username, $resetLink, $displayName = null) {
-    $configPath = __DIR__ . DIRECTORY_SEPARATOR . 'mail_config.php';
     $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
-
-    if (!is_file($configPath)) {
-        return ['sent' => false, 'error' => 'api/mail_config.php not found. Copy api/mail_config.php.example to api/mail_config.php and set your SMTP credentials.'];
-    }
     if (!is_file($autoload)) {
         return ['sent' => false, 'error' => 'Composer vendor folder missing. Run: composer install'];
     }
 
-    $config = require $configPath;
-    if (empty($config['smtp_user']) || empty($config['smtp_password'])) {
-        return ['sent' => false, 'error' => 'smtp_user and smtp_password must be set in api/mail_config.php (use your email and Gmail App Password or other SMTP password).'];
+    $config = satc_load_mail_config();
+    if (!satc_mail_config_is_complete($config)) {
+        return ['sent' => false, 'error' => satc_mail_smtp_not_configured_message()];
     }
 
     require_once $autoload;
@@ -66,7 +60,7 @@ function sendPasswordResetEmail($toEmail, $username, $resetLink, $displayName = 
         $mail->send();
         return ['sent' => true, 'error' => ''];
     } catch (\PHPMailer\PHPMailer\Exception $e) {
-        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage() . '. Check api/mail_config.php (e.g. Gmail needs an App Password, not your normal password).'];
+        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage() . '. Check SMTP settings (api/mail_config.php or SATC_SMTP_* environment variables; e.g. Gmail needs an App Password, not your normal password).'];
     }
 }
 
@@ -80,19 +74,14 @@ function sendPasswordResetEmail($toEmail, $username, $resetLink, $displayName = 
  * @return array{ sent: bool, error: string }
  */
 function sendNewUserCredentialsEmail($toEmail, $displayName, $tempPassword, $loginUrl) {
-    $configPath = __DIR__ . DIRECTORY_SEPARATOR . 'mail_config.php';
     $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
-
-    if (!is_file($configPath)) {
-        return ['sent' => false, 'error' => 'api/mail_config.php not found. Copy api/mail_config.php.example to api/mail_config.php and set your SMTP credentials.'];
-    }
     if (!is_file($autoload)) {
         return ['sent' => false, 'error' => 'Composer vendor folder missing. Run: composer install'];
     }
 
-    $config = require $configPath;
-    if (empty($config['smtp_user']) || empty($config['smtp_password'])) {
-        return ['sent' => false, 'error' => 'smtp_user and smtp_password must be set in api/mail_config.php (use your email and Gmail App Password or other SMTP password).'];
+    $config = satc_load_mail_config();
+    if (!satc_mail_config_is_complete($config)) {
+        return ['sent' => false, 'error' => satc_mail_smtp_not_configured_message()];
     }
 
     require_once $autoload;
@@ -118,7 +107,7 @@ function sendNewUserCredentialsEmail($toEmail, $displayName, $tempPassword, $log
         $mail->send();
         return ['sent' => true, 'error' => ''];
     } catch (\PHPMailer\PHPMailer\Exception $e) {
-        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage() . '. Check api/mail_config.php (e.g. Gmail needs an App Password, not your normal password).'];
+        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage() . '. Check SMTP settings (api/mail_config.php or SATC_SMTP_* environment variables; e.g. Gmail needs an App Password, not your normal password).'];
     }
 }
 
@@ -158,19 +147,14 @@ function emailTemplateReset($resetLink, $fromName, $displayName = '') {
  * @return array{ sent: bool, error: string }
  */
 function sendPasswordChangedEmail($toEmail, $displayName) {
-    $configPath = __DIR__ . DIRECTORY_SEPARATOR . 'mail_config.php';
     $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
-
-    if (!is_file($configPath)) {
-        return ['sent' => false, 'error' => 'api/mail_config.php not found.'];
-    }
     if (!is_file($autoload)) {
         return ['sent' => false, 'error' => 'Composer vendor folder missing. Run: composer install'];
     }
 
-    $config = require $configPath;
-    if (empty($config['smtp_user']) || empty($config['smtp_password'])) {
-        return ['sent' => false, 'error' => 'smtp_user and smtp_password must be set in api/mail_config.php.'];
+    $config = satc_load_mail_config();
+    if (!satc_mail_config_is_complete($config)) {
+        return ['sent' => false, 'error' => satc_mail_smtp_not_configured_message()];
     }
 
     require_once $autoload;
@@ -195,7 +179,7 @@ function sendPasswordChangedEmail($toEmail, $displayName) {
         $mail->send();
         return ['sent' => true, 'error' => ''];
     } catch (\PHPMailer\PHPMailer\Exception $e) {
-        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage()];
+        return ['sent' => false, 'error' => 'SMTP failed: ' . $e->getMessage() . '. Check SMTP settings (api/mail_config.php or SATC_SMTP_* environment variables).'];
     }
 }
 

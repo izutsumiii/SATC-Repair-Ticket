@@ -9,13 +9,6 @@ if (isLoggedIn()) {
 
 $dataDir  = __DIR__ . DIRECTORY_SEPARATOR . 'data';
 $tokensFile = $dataDir . DIRECTORY_SEPARATOR . 'password_reset_tokens.json';
-// #region agent log
-$debugLogPath = __DIR__ . DIRECTORY_SEPARATOR . 'debug-63ea2c.log';
-function debugLog($path, $location, $message, $data, $hypothesisId) {
-    $payload = ['sessionId' => '63ea2c', 'location' => $location, 'message' => $message, 'data' => $data, 'hypothesisId' => $hypothesisId, 'timestamp' => time()];
-    @file_put_contents($path, json_encode($payload) . "\n", FILE_APPEND | LOCK_EX);
-}
-// #endregion
 
 function loadTokens($tokensFile) {
     if (!is_file($tokensFile)) return [];
@@ -60,25 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
             $expires = time() + 3600;
             $tokens = loadTokens($tokensFile);
             $tokens[$token] = ['username' => $found['username'], 'expires' => $expires];
-            // #region agent log
-            debugLog($debugLogPath, 'forgot_password.php:save', 'before save', [
-                'tokensFilePath' => $tokensFile,
-                'dataDirPath' => $dataDir,
-                'fileExistsBefore' => is_file($tokensFile),
-                'tokenLength' => strlen($token),
-                'tokenPrefix' => substr($token, 0, 6),
-                'expires' => $expires,
-                'timeNow' => time(),
-                'tokensCount' => count($tokens),
-            ], 'A');
-            // #endregion
             saveTokens($tokensFile, $tokens, $dataDir);
-            // #region agent log
-            debugLog($debugLogPath, 'forgot_password.php:after_save', 'after save', [
-                'fileExistsAfter' => is_file($tokensFile),
-                'saveOk' => is_file($tokensFile) && filesize($tokensFile) > 0,
-            ], 'D');
-            // #endregion
             $baseUrl = getBaseUrl();
             $resetLink = $baseUrl . 'reset_password.php?token=' . urlencode($token);
             $mailResult = sendPasswordResetEmail($found['data']['email'], $found['username'], $resetLink, $found['data']['display_name'] ?? $found['username']);
@@ -86,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
                 header('Location: login.php?reset_link_sent=1');
                 exit;
             } else {
-                $message = 'Email could not be sent. ' . ($mailResult['error'] ?? 'Check api/mail_config.php and SMTP credentials.');
+                $message = 'We could not send email right now. Try again later, or contact your administrator if the problem continues.';
                 $isError = true;
             }
         }

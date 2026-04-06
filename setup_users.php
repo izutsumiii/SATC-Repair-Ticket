@@ -50,7 +50,7 @@ header('Content-Type: text/html; charset=utf-8');
         </tbody>
     </table>
 
-    <p>Programmers can add new users from <strong>Manage users</strong> in the app. New users receive a random password by email. See <a href="docs/ADMIN_SETUP.md">Admin Setup</a> and <a href="docs/USER_MANUAL.md">User Manual</a> for step-by-step guides.</p>
+    <p>Programmers can add new users from <strong>Manage users</strong> in the app. New users receive a random password by email. See <a href="docs/SATC_GUIDE.md#section-b-admin-setup">Admin setup</a> and <a href="docs/SATC_GUIDE.md#section-a-user-manual">User manual</a> in <a href="docs/SATC_GUIDE.md">SATC_GUIDE.md</a>.</p>
     <p><a href="login.php">Go to Login</a></p>
 </body>
 </html>
