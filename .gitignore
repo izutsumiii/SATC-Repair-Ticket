@@ -1,2 +1,6 @@
 *.xlsx
 .cursor/*.log
+
+# Local secrets (never commit)
+api/mail_config.php
+data/*.db

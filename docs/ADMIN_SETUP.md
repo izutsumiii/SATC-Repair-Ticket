@@ -155,8 +155,9 @@ Change or remove these in production. **Forgot password** and **Manage users** r
 
 ## 9. Security
 
+- **Full checklist (risks, phases, SMTP, login hardening, agent templates):** See **[SECURITY_AND_OPERATIONS_PLAYBOOK.md](SECURITY_AND_OPERATIONS_PLAYBOOK.md)**.
 - **GAS connection:** Keep `API_MODE = 'gas'` and a valid `GAS_URL` in `assets/js/app.js` when using Google Sheets. Do not put API keys or passwords in the frontend.
-- **Secrets:** Store SMTP credentials only in **api/mail_config.php** (and do not commit real passwords to version control). Any other secrets belong in server config or Google Apps Script (Script Properties), not in `app.js` or HTML.
+- **Secrets:** Store SMTP credentials only in **api/mail_config.php** (copy from **api/mail_config.php.example**; do not commit real passwords). Any other secrets belong in server config or Google Apps Script (Script Properties), not in `app.js` or HTML.
 - **HTTPS:** Use HTTPS in production for the app and, where possible, for the GAS URL.
 - **Data folder:** Ensure `data/` (users.db, tokens, CSV if used) is not directly web-accessible (e.g. deny in Apache or place outside document root).
 
@@ -168,7 +169,7 @@ Change or remove these in production. **Forgot password** and **Manage users** r
 - **api/** — Backend PHP (auth, users, api, db, mail config, send_reset_email, etc.).
 - **assets/css**, **assets/js** — Styles and front-end script.
 - **data/** — SQLite DB, CSV (if used), password-reset tokens. Must be writable; not for public access.
-- **docs/** — **USER_MANUAL.md** (end users), **ADMIN_SETUP.md** (this file).
+- **docs/** — **USER_MANUAL.md** (end users), **ADMIN_SETUP.md** (this file), **SECURITY_AND_OPERATIONS_PLAYBOOK.md** (security and operations).
 - **scripts/** — **google_apps_script.js** (copy into Google Apps Script editor when setting up GAS).
 - **vendor/** — Composer dependencies (do not edit).
 
