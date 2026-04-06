@@ -1106,7 +1106,7 @@ async function loadTickets(preserveFilters = false) {
         // If preserving filters (during refresh), apply current filters
         // Otherwise render all tickets
         if (preserveFilters) {
-            filterTickets();
+            filterTickets(true);
         } else {
             renderTicketsTable(allTickets);
             
@@ -1265,10 +1265,16 @@ function goTicketsPage(pageIndex) {
     renderTicketsTablePage();
 }
 
-/** Full list to display (all or filtered); resets to page 0. */
-function renderTicketsTable(tickets) {
+/** Full list to display (all or filtered). By default resets to page 0; pass preservePage true to keep/clamp current page (e.g. silent refresh). */
+function renderTicketsTable(tickets, preservePage) {
     ticketsViewList = Array.isArray(tickets) ? tickets : [];
-    ticketsViewPage = 0;
+    const n = ticketsViewList.length;
+    const maxPage = n > 0 ? Math.max(0, Math.ceil(n / TICKETS_PAGE_SIZE) - 1) : 0;
+    if (preservePage) {
+        ticketsViewPage = Math.max(0, Math.min(ticketsViewPage, maxPage));
+    } else {
+        ticketsViewPage = 0;
+    }
     renderTicketsTablePage();
 }
 
@@ -1422,7 +1428,7 @@ function normalizeStatus(status) {
     return status.trim() || status;
 }
 
-function filterTickets() {
+function filterTickets(preservePage) {
     // Ensure allTickets is loaded
         if (!allTickets || allTickets.length === 0) {
         console.warn('No tickets data available to filter');
@@ -1476,7 +1482,7 @@ function filterTickets() {
     const countEl = document.getElementById('ticket-count');
     if(countEl) countEl.innerText = `Showing ${filtered.length} ticket${filtered.length !== 1 ? 's' : ''}`;
 
-    renderTicketsTable(filtered);
+    renderTicketsTable(filtered, !!preservePage);
 }
 
 // Sorting

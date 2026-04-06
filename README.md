@@ -2,6 +2,15 @@
 
 Web-based repair ticketing with login, roles, and optional Google Sheets (GAS) or local CSV for ticket data.
 
+**Repository:** [github.com/izutsumiii/SATC-Repair-Ticket](https://github.com/izutsumiii/SATC-Repair-Ticket)
+
+---
+
+## Recent improvements
+
+- **Tickets list:** Pagination no longer jumps back to page 1 when the list auto-refreshes (for example while polling Google Apps Script). Changing search or filters still resets to page 1 as expected.
+- **UI:** Dashboard styling uses **Poppins** and **Oswald** (Google Fonts) for consistent typography across the main app and login-related pages.
+
 ---
 
 ## Quick setup (PHP, Composer, and dependencies)

@@ -755,6 +755,23 @@ h1.h2 {
     padding: 0.4em 0.85em;
 }
 
+/* Active Workload: ID + Issue — same size (slightly larger than default row text) */
+#active-workload-table thead th:nth-child(1),
+#active-workload-table thead th:nth-child(2) {
+    font-size: 0.875rem;
+}
+#active-workload-table tbody td:nth-child(1) {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+#active-workload-table tbody td:nth-child(2),
+#active-workload-table tbody td:nth-child(2) .text-truncate {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
 /* ========== MANAGE USERS TABLE – same design as Tickets table ========== */
 .users-table-wrapper {
     max-height: 70vh;
@@ -969,11 +986,14 @@ h1.h2 {
 /* Tickets table: responsive wrapper + scroll + lengthy text handling */
 .tickets-table-wrapper {
     max-height: 70vh;
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     border: 1px solid #e9ecef;
     border-radius: var(--radius);
     padding-right: 2px;
+    /* Lets the table scroll horizontally when main area is narrow (sidebar open) */
+    min-width: 0;
 }
 
 .tickets-pagination .btn:disabled {
@@ -1038,7 +1058,8 @@ h1.h2 {
 #tickets-table {
     table-layout: fixed;
     width: 100%;
-    min-width: 1000px;
+    /* Total width follows colgroup; keep floor so columns don’t collapse */
+    min-width: 1220px;
     font-size: 0.8125rem;
 }
 /* Keep header row background continuous when scrolling horizontally */
@@ -1052,49 +1073,41 @@ h1.h2 {
     padding: 0.5rem 0.75rem;
     vertical-align: middle;
 }
-/* Header: first th has colspan 2 (Ticket number over checkbox + ticket number columns) */
-#tickets-table th:nth-child(1) { width: 13%; min-width: 8rem; padding-left: 0.5rem; }
-#tickets-table th:nth-child(2) { width: 11%; min-width: 8rem; }   /* JO number */
-#tickets-table th:nth-child(3) { width: 12%; min-width: 8.5rem; }   /* Account number */
-#tickets-table th:nth-child(4) { width: 10%; min-width: 6.5rem; }   /* Date */
-#tickets-table th:nth-child(5) { width: 12%; min-width: 9rem; }   /* Customer */
-#tickets-table th:nth-child(6) { width: 10%; min-width: 7rem; }   /* Issue */
-#tickets-table th:nth-child(7) { width: 11%; min-width: 7.5rem; }   /* Status */
-#tickets-table th:nth-child(8) { width: 8%; min-width: 6rem; }   /* Risk */
-#tickets-table th:nth-child(9) { width: 7%; min-width: 5rem; }   /* Team */
-/* Checkbox column widths: see .tickets-responsive tbody rules below */
+/* Column widths: colgroup + .tickets-responsive .th-* (legacy % th rules removed — they fought colgroup) */
 /* Ticket number value cell - overflow visible so inner span can overlap left */
 #tickets-table td.ticket-number-value-cell {
     color: var(--table-text, #212529);
     font-weight: 600;
     padding-right: 0.75rem;
-    padding-left: 0.5rem;
+    padding-left: 0.65rem;
     overflow: visible;
     vertical-align: middle;
 }
-/* Position ticket number value; reduced negative margin to avoid overlap with checkbox */
+/* Ticket # inner: stay inline-block (matches td > * rule) so it vertically centers with the row */
 #tickets-table td.ticket-number-value-cell .ticket-number-value-inner {
     display: inline-block;
-    margin-left: -0.5rem;
+    vertical-align: middle;
+    margin-left: -0.35rem;
+    line-height: 1.35;
 }
 #tickets-table td:nth-child(3) { color: var(--primary-color); font-weight: 600; padding-right: 0.75rem; }
 #tickets-table td:nth-child(5) { white-space: nowrap; padding-right: 1rem; }  /* Keep date on one line */
-#tickets-table td:nth-child(4) { padding-right: 1rem; }  /* Account number */
+#tickets-table td:nth-child(4) { padding-right: 1rem; }  /* Contact */
 #tickets-table td:nth-child(6) { padding-right: 1rem; }  /* Customer */
 /* Customer & Issue: wrap lengthy text inside cell */
 #tickets-table td:nth-child(6) {
     word-wrap: break-word;
     word-break: break-word;
     overflow-wrap: break-word;
-    max-width: 0;
+    max-width: none;
     padding-right: 1rem;
 }
 #tickets-table td:nth-child(7) {
     word-wrap: break-word;
     word-break: break-word;
     overflow-wrap: break-word;
-    max-width: 0;
-    text-align: right;
+    max-width: none;
+    text-align: left;
     padding-right: 1rem;
 }
 #tickets-table td:nth-child(7) .ticket-issue {
@@ -1187,41 +1200,67 @@ h1.h2 {
 
 /* Header column widths */
 .tickets-responsive .th-checkbox { width: 35px; max-width: 35px; }
-.tickets-responsive .th-ticket-num { width: 115px; max-width: 115px; }
-.tickets-responsive .th-jo-num { width: 85px; max-width: 85px; }
+.tickets-responsive .th-ticket-num { width: 144px; max-width: 144px; font-size: calc(0.8125rem - 1pt); font-weight: 600; }
+.tickets-responsive .th-jo-num { width: 118px; max-width: 118px; }
 .tickets-responsive .th-account,
-.tickets-responsive .th-contact { width: 95px; max-width: 95px; }
-.tickets-responsive .th-date { width: 110px; max-width: 110px; }
-.tickets-responsive .th-customer { width: 110px; max-width: 110px; }
-.tickets-responsive .th-issue { width: auto; max-width: none; min-width: 200px; }
-.tickets-responsive .th-status { width: 95px; max-width: 95px; }
-.tickets-responsive .th-risk { width: 80px; max-width: 80px; }
-.tickets-responsive .th-team { width: 90px; max-width: 90px; }
-.tickets-responsive .th-first-dispatch { width: 95px; max-width: 95px; }
-.tickets-responsive .th-second-dispatch { width: 95px; max-width: 95px; }
-.tickets-responsive .th-third-dispatch { width: 95px; max-width: 95px; }
+.tickets-responsive .th-contact { width: 100px; max-width: 100px; }
+/* Date + dispatch: room for full values (sidebar open / narrow main) */
+.tickets-responsive .th-date,
+.tickets-responsive .th-first-dispatch,
+.tickets-responsive .th-second-dispatch,
+.tickets-responsive .th-third-dispatch {
+    width: auto;
+    min-width: 7.5rem;
+    max-width: none;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+.tickets-responsive .th-date { min-width: 7.75rem; }
+.tickets-responsive .th-customer { width: 128px; max-width: 128px; }
+/* Issue: compact — long text uses 2-line clamp; frees space for Status / Team / dispatch */
+.tickets-responsive .th-issue { width: 140px; max-width: 140px; min-width: 0; }
+.tickets-responsive .th-status { width: 108px; max-width: 108px; }
+.tickets-responsive .th-risk { width: 82px; max-width: 82px; }
+.tickets-responsive .th-team { width: 102px; max-width: 102px; }
 
 /* Body cells - match header widths exactly */
 #tickets-table tbody td:nth-child(1) { width: 35px; max-width: 35px; text-align: center; padding: 0.5rem 0.25rem; }
-#tickets-table tbody td:nth-child(2) { width: 115px; max-width: 115px; }
-#tickets-table tbody td:nth-child(3) { width: 85px; max-width: 85px; }
-#tickets-table tbody td:nth-child(4) { width: 95px; max-width: 95px; }
-#tickets-table tbody td:nth-child(5) { width: 110px; max-width: 110px; }
-#tickets-table tbody td:nth-child(6) { width: 110px; max-width: 110px; }
-#tickets-table tbody td:nth-child(7) { width: auto; max-width: none; min-width: 200px; }
-#tickets-table tbody td:nth-child(8) { width: 95px; max-width: 95px; }
-#tickets-table tbody td:nth-child(9) { width: 80px; max-width: 80px; }
-#tickets-table tbody td:nth-child(10) { width: 90px; max-width: 90px; }
-#tickets-table tbody td:nth-child(11) { width: 95px; max-width: 95px; }
-#tickets-table tbody td:nth-child(12) { width: 95px; max-width: 95px; }
-#tickets-table tbody td:nth-child(13) { width: 95px; max-width: 95px; }
+#tickets-table tbody td:nth-child(2) { width: 144px; max-width: 144px; }
+#tickets-table tbody td:nth-child(3) { width: 118px; max-width: 118px; }
+#tickets-table tbody td:nth-child(4) { width: 100px; max-width: 100px; }
+#tickets-table tbody td:nth-child(5) {
+    width: auto;
+    min-width: 7.75rem;
+    max-width: none;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+}
+#tickets-table tbody td:nth-child(6) { width: 128px; max-width: 128px; }
+#tickets-table tbody td:nth-child(7) { width: 140px; max-width: 140px; min-width: 0; }
+#tickets-table tbody td:nth-child(8) { width: 108px; max-width: 108px; }
+#tickets-table tbody td:nth-child(9) { width: 82px; max-width: 82px; }
+#tickets-table tbody td:nth-child(10) { width: 102px; max-width: 102px; }
+#tickets-table tbody td:nth-child(11),
+#tickets-table tbody td:nth-child(12),
+#tickets-table tbody td:nth-child(13) {
+    width: auto;
+    min-width: 7.5rem;
+    max-width: none;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+}
 
-/* Inner content truncation */
+/* Inner content truncation — use inline-block + middle so row height (e.g. 2-line Issue) doesn’t leave Ticket # / badges visually top-hanging */
 #tickets-table tbody td > * {
-    display: block;
+    display: inline-block;
+    vertical-align: middle;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
 }
 
 /* Loading row: keep flex centering (td > * above would otherwise force display:block on .section-loader) */
@@ -1291,15 +1330,15 @@ h1.h2 {
     font-size: 0.75rem;
 }
 
-/* Ticket number styling */
-.ticket-number-value-cell {
-    font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: -0.3px;
+/* Ticket # — ~1pt under table base; weight for emphasis */
+#tickets-table tbody td.ticket-number-value-cell,
+#tickets-table tbody td.ticket-number-value-cell .ticket-number-value-inner {
+    font-family: 'Poppins', sans-serif;
+    font-size: calc(0.8125rem - 1pt);
+    font-weight: 600;
+    letter-spacing: normal;
 }
-.ticket-number-value-inner {
-    display: block;
+#tickets-table .ticket-number-value-inner {
     overflow: hidden;
     text-overflow: ellipsis;
 }

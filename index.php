@@ -527,18 +527,18 @@ requireLogin();
                             <table class="table table-hover align-middle mb-0 tickets-responsive" id="tickets-table">
                                 <colgroup>
                                     <col style="width: 35px;">
-                                    <col style="width: 115px;">
-                                    <col style="width: 110px;">
-                                    <col style="width: 95px;">
-                                    <col style="width: 85px;">
-                                    <col style="width: 110px;">
-                                    <col style="width: 140px;">
-                                    <col style="width: 95px;">
-                                    <col style="width: 80px;">
-                                    <col style="width: 90px;">
-                                    <col style="width: 95px;">
-                                    <col id="col-second-dispatch" style="width: 95px; display: none;">
-                                    <col id="col-third-dispatch" style="width: 95px; display: none;">
+                                    <col style="width: 144px; min-width: 144px;">
+                                    <col style="width: 118px; min-width: 118px;">
+                                    <col style="width: 100px; min-width: 100px;">
+                                    <col class="col-date-created" style="width: 128px; min-width: 128px;">
+                                    <col style="width: 128px; min-width: 128px;">
+                                    <col style="width: 140px; min-width: 140px; max-width: 140px;">
+                                    <col style="width: 108px; min-width: 108px;">
+                                    <col style="width: 82px; min-width: 82px;">
+                                    <col style="width: 102px; min-width: 102px;">
+                                    <col class="col-dispatch" style="width: 112px; min-width: 112px;">
+                                    <col id="col-second-dispatch" class="col-dispatch" style="width: 112px; min-width: 112px; display: none;">
+                                    <col id="col-third-dispatch" class="col-dispatch" style="width: 112px; min-width: 112px; display: none;">
                                 </colgroup>
                                 <thead class="position-sticky top-0" style="z-index: 10;">
                                     <tr>
